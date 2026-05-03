@@ -22,31 +22,32 @@ class PIDController:
         self.prev_error = 0
 
 class TrajectoryFollower:
-    def __init__(self, arm_sim, controller1, controller2, kV = (0.1, 0.1), kG = (4, 2)):
+
+    def __init__(self, arm_sim, controller1, controller2, kV = (0.1, 0.1), kG = (2, -1)):
         self.controller1 = controller1
         self.controller2 = controller2
         self.arm_sim = arm_sim
         self.kV = kV
         self.kG = kG
 
-    def follow_trajectory(self, trajectory, time, dt = 0.02):
+    def follow_trajectory(self, trajectory, step, dt = 0.02):
         """Given a list of (t1_setpoint, t2_setpoint) pairs and a time step dt,
         compute and apply motor voltages to follow the trajectory."""
-        setpoint = trajectory[time]
+        setpoint = trajectory[step]
 
-        upper_pid = self.controller1.compute(self.arm_sim.position, setpoint[0], dt)
-        lower_pid = self.controller2.compute(self.arm_sim.position, setpoint[1], dt)
+        upper_pid = self.controller1.compute(self.arm_sim.upperArm.position, setpoint[0], dt)
+        forearm_pid = self.controller2.compute(self.arm_sim.forearm.position, setpoint[1], dt)
 
         # need to add torus wraparound
-        velocity = (trajectory[time+1] - trajectory[time])/dt if time < len(trajectory)-1 else (0,0)
+        velocity = ((trajectory[step+1][0] - trajectory[step][0])/dt, (trajectory[step+1][1] - trajectory[step][1])/dt) if step < len(trajectory)-2 else (0.0,0.0)
         upper_ff = velocity[0] * self.kV[0]
-        lower_ff = velocity[1] * self.kV[1]
+        forearm_ff = velocity[1] * self.kV[1]
 
-        upper_gravity_ff = math.cos(self.arm_sim.position) * self.kG[0]
-        lower_gravity_ff = math.cos(self.arm_sim.position) * self.kG[1]
+        upper_gravity_ff = math.cos(self.arm_sim.upperArm.position) * self.kG[0]
+        forearm_gravity_ff = math.cos(self.arm_sim.forearm.position) * self.kG[1]
 
         upper_voltage = upper_pid + upper_ff + upper_gravity_ff
-        lower_voltage = lower_pid + lower_ff + lower_gravity_ff
+        forearm_voltage = forearm_pid + forearm_ff + forearm_gravity_ff
 
         self.arm_sim.upperArm.setVoltage(upper_voltage)
-        self.arm_sim.lowerArm.setVoltage(lower_voltage)
+        self.arm_sim.forearm.setVoltage(forearm_voltage)

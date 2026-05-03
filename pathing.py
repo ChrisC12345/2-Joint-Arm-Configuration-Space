@@ -61,7 +61,7 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
     return None
 
 
-def smooth_path(path, obstacles, samples=10):
+def smooth_path(path, obstacles):
     path = [np.asarray(p, float) for p in path]
     i = 0
     while i < len(path) - 2:
@@ -86,3 +86,32 @@ def interpolate_path(path, resolution=0.05):
             dense_path.append(tuple(config))
     dense_path.append(path[-1])
     return dense_path
+
+def is_reachable(grid, start, goal, N=200):
+    '''Returns True if there is a path from start to goal through free cells in the grid, treating the grid as a torus.
+    grid is a 2D numpy array where 0 = free and 1 = occupied. start and goal are (t1, t2) configs.'''
+    # convert configs to grid indices
+    def to_idx(config):
+        i = int((config[0] + math.pi) / (2 * math.pi) * N)
+        j = int((config[1] + math.pi) / (2 * math.pi) * N)
+        return np.clip(i, 0, N-1), np.clip(j, 0, N-1)
+    
+    si, sj = to_idx(start)
+    gi, gj = to_idx(goal)
+    
+    # BFS flood fill through free cells
+    from collections import deque
+    visited = np.zeros((N, N), dtype=bool)
+    queue = deque([(si, sj)])
+    visited[si, sj] = True
+    
+    while queue:
+        i, j = queue.popleft()
+        if i == gi and j == gj:
+            return True
+        for di, dj in [(-1,0),(1,0),(0,-1),(0,1)]:
+            ni, nj = (i+di) % N, (j+dj) % N  # toroidal wraparound
+            if not visited[ni, nj] and grid[nj, ni] == 0:
+                visited[ni, nj] = True
+                queue.append((ni, nj))
+    return False

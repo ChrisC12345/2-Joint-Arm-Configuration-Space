@@ -8,32 +8,16 @@ import math
 import arm
 from arm import forward_kinematics, is_collision, is_collision_batch
 from obstacles import Obstacle, ObstacleType
-from rrt import rrt, smooth_path
+from pathing import rrt, smooth_path, interpolate_path, is_reachable
 from matplotlib.animation import FuncAnimation
 from arm_sim import SingleJointArmSim, DoubleJointArmSim
-from control import PIDController
+from control import PIDController, TrajectoryFollower
 
 def draw_cspace(obstacles):
     N = 200
     T1, T2 = np.meshgrid(np.linspace(-math.pi, math.pi, N),
                          np.linspace(-math.pi, math.pi, N))
     return is_collision_batch(T1, T2, obstacles).astype(float)
-
-def interpolate_path(path, resolution=0.05):
-    dense_path = []
-    for i in range(len(path) - 1):
-        a = np.array(path[i])
-        b = np.array(path[i+1])
-        diff = (b - a + math.pi) % (2 * math.pi) - math.pi  # shortest arc
-        length = np.linalg.norm(diff)
-        steps = max(2, int(length / resolution))
-        for t in range(steps):
-            config = a + (t / steps) * diff
-            # wrap back into [-pi, pi]
-            config = ((config + math.pi) % (2 * math.pi)) - math.pi
-            dense_path.append(tuple(config))
-    dense_path.append(path[-1])
-    return dense_path
 
 def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     """
@@ -118,6 +102,7 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
         forearm.setMotorPowered(True)
         pid1 = PIDController(Kp=10.0, Ki=0.0, Kd=1.0)
         pid2 = PIDController(Kp=10.0, Ki=0.0, Kd=1.0)
+        traj_follower = TrajectoryFollower(sim, pid1, pid2)
 
         # PID comparison artists
         pid_trace,  = ax2.plot([], [], '-', color='cyan', linewidth=1.5, alpha=0.8, zorder=3, label='actual path')
@@ -159,12 +144,7 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
         _step[0] += 1
 
         if use_pid:
-            fb1 = pid1.compute(sim.upperArm.position, t1_arr[idx], sim.upperArm.dt)
-            fb2 = pid2.compute(sim.forearm.position,  t2_arr[idx], sim.forearm.dt)
-            ff1 = (t1_arr[idx] - t1_arr[idx-1]) / sim.upperArm.dt if idx > 0 and idx < len(t1_arr)-1 else 0.0
-            ff2 = (t2_arr[idx] - t2_arr[idx-1]) / sim.forearm.dt  if idx > 0 and idx < len(t2_arr)-1 else 0.0
-            upperArm.setVoltage(fb1 + ff1)
-            forearm.setVoltage(fb2 + ff2)
+            traj_follower.follow_trajectory(path, idx)
             sim.update()
             fk = forward_kinematics(sim.upperArm.position, sim.forearm.position)
             ex, ey = fk[0];  tx, ty = fk[1]
@@ -240,33 +220,6 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     # prevent garbage collection — FuncAnimation and Button are local vars
     fig._anim = ani
     fig._btn  = btn_reset
-
-def is_reachable(grid, start, goal, N=200):
-    # convert configs to grid indices
-    def to_idx(config):
-        i = int((config[0] + math.pi) / (2 * math.pi) * N)
-        j = int((config[1] + math.pi) / (2 * math.pi) * N)
-        return np.clip(i, 0, N-1), np.clip(j, 0, N-1)
-    
-    si, sj = to_idx(start)
-    gi, gj = to_idx(goal)
-    
-    # BFS flood fill through free cells
-    from collections import deque
-    visited = np.zeros((N, N), dtype=bool)
-    queue = deque([(si, sj)])
-    visited[si, sj] = True
-    
-    while queue:
-        i, j = queue.popleft()
-        if i == gi and j == gj:
-            return True
-        for di, dj in [(-1,0),(1,0),(0,-1),(0,1)]:
-            ni, nj = (i+di) % N, (j+dj) % N  # toroidal wraparound
-            if not visited[ni, nj] and grid[nj, ni] == 0:
-                visited[ni, nj] = True
-                queue.append((ni, nj))
-    return False
 
 # ── Obstacle Setup ────────────────────────────────────────────────────────────
 
@@ -492,7 +445,7 @@ else:
             print("no path found")
         else:
             print("path length before smoothing:", len(path))
-            smoothed = smooth_path(path.copy(), OBSTACLE, samples=4)
+            smoothed = smooth_path(path.copy(), OBSTACLE)
             print("path length after smoothing:", len(smoothed))
             interp_path     = interpolate_path(path)
             interp_smoothed = interpolate_path(smoothed)
