@@ -3,12 +3,7 @@
 import numpy as np
 import math
 from arm import is_collision_batch
-
-def _torus_dist_sq(a, nodes):
-    """Vectorized squared torus distance from point a to every row in nodes array."""
-    diff = np.abs(nodes - a)
-    diff = np.minimum(diff, 2 * math.pi - diff)
-    return diff[:, 0] ** 2 + diff[:, 1] ** 2
+from torus import torus_diff, torus_point, torus_dist_sq
 
 
 def _line_free(a, b, obstacles):
@@ -38,15 +33,15 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
                      else np.random.uniform(-math.pi, math.pi, 2)
 
         # nearest neighbour — one vectorised numpy call instead of a Python loop
-        nearest_idx = int(np.argmin(_torus_dist_sq(point, nodes[:n_nodes])))
+        nearest_idx = int(np.argmin(torus_dist_sq(point, nodes[:n_nodes])))
         nearest = nodes[nearest_idx]
 
         # steer toward sample by step_size
-        direction = (point - nearest + math.pi) % (2 * math.pi) - math.pi
+        direction = torus_diff(point, nearest)  # alternative using torus_diff function
         norm = math.hypot(direction[0], direction[1])
         if norm < 1e-10:
             continue
-        new_node = ((nearest + direction * (step_size / norm)) + math.pi) % (2 * math.pi) - math.pi
+        new_node = torus_point(nearest + direction * (step_size / norm))
 
         if _line_free(nearest, new_node, obstacles):
             nodes[n_nodes] = new_node
@@ -54,7 +49,7 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
             n_nodes += 1
 
             # check if we reached the goal
-            if _torus_dist_sq(goal, nodes[n_nodes-1:n_nodes])[0] < step_size ** 2:
+            if torus_dist_sq(goal, nodes[n_nodes-1:n_nodes])[0] < step_size ** 2:
                 path = []
                 idx = n_nodes - 1
                 while idx >= 0:
@@ -81,13 +76,13 @@ def interpolate_path(path, resolution=0.05):
     for i in range(len(path) - 1):
         a = np.array(path[i])
         b = np.array(path[i+1])
-        diff = (b - a + math.pi) % (2 * math.pi) - math.pi  # shortest arc
+        diff = torus_diff(b, a) 
         length = np.linalg.norm(diff)
         steps = max(2, int(length / resolution))
         for t in range(steps):
             config = a + (t / steps) * diff
             # wrap back into [-pi, pi]
-            config = ((config + math.pi) % (2 * math.pi)) - math.pi
+            config = torus_point(config)
             dense_path.append(tuple(config))
     dense_path.append(path[-1])
     return dense_path

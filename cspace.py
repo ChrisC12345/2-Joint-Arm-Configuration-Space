@@ -10,7 +10,7 @@ from arm import forward_kinematics, is_collision, is_collision_batch
 from obstacles import Obstacle, ObstacleType
 from rrt import rrt, smooth_path
 from matplotlib.animation import FuncAnimation
-from simulation import SingleJointArmSim, DoubleJointArmSim
+from arm_sim import SingleJointArmSim, DoubleJointArmSim
 from control import PIDController
 
 def draw_cspace(obstacles):
@@ -34,32 +34,6 @@ def interpolate_path(path, resolution=0.05):
             dense_path.append(tuple(config))
     dense_path.append(path[-1])
     return dense_path
-
-def simulate_pid(path, Kp=10.0, Ki=0.0, Kd=1.0):
-    """Run PID simulation over path and return list of (t1_sim, t2_sim) configs."""
-    t1_arr = np.array([p[0] for p in path])
-    t2_arr = np.array([p[1] for p in path])
-
-    upperArm = SingleJointArmSim()
-    forearm  = SingleJointArmSim()
-    sim = DoubleJointArmSim(upperArm, forearm)
-    sim.upperArm.setPosition(path[0][0])
-    sim.forearm.setPosition(path[0][1])
-    upperArmPID = PIDController(Kp=Kp, Ki=Ki, Kd=Kd)
-    forearmPID  = PIDController(Kp=Kp, Ki=Ki, Kd=Kd)
-
-    configs = []
-    for i in range(len(path)):
-        fb1 = upperArmPID.compute(sim.upperArm.position, t1_arr[i], sim.upperArm.dt)
-        fb2 = forearmPID.compute(sim.forearm.position,   t2_arr[i], sim.forearm.dt)
-        ff1 = (t1_arr[i] - t1_arr[i-1]) / sim.upperArm.dt if i > 0 else 0.0
-        ff2 = (t2_arr[i] - t2_arr[i-1]) / sim.forearm.dt  if i > 0 else 0.0
-        upperArm.setVoltage(fb1 + ff1)
-        forearm.setVoltage(fb2 + ff2)
-        sim.update()
-        configs.append((sim.upperArm.position, sim.forearm.position))
-    return configs
-
 
 def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     """
@@ -124,7 +98,8 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     for seg_t1, seg_t2 in zip(segments_t1, segments_t2):
         ax2.plot(seg_t1, seg_t2, 'm-', linewidth=1.5, alpha=0.5)
 
-    dot, = ax2.plot([], [], 'bo', markersize=8)
+    dot,    = ax2.plot([], [], 'bo', markersize=8, zorder=5, label='actual')
+    sp_dot, = ax2.plot([], [], 'o',  markersize=6, color='orange', zorder=4, label='setpoint')
 
     t1_arr = np.array([p[0] for p in path])
     t2_arr = np.array([p[1] for p in path])
@@ -144,10 +119,29 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
         pid1 = PIDController(Kp=10.0, Ki=0.0, Kd=1.0)
         pid2 = PIDController(Kp=10.0, Ki=0.0, Kd=1.0)
 
+        # PID comparison artists
+        pid_trace,  = ax2.plot([], [], '-', color='cyan', linewidth=1.5, alpha=0.8, zorder=3, label='actual path')
+        sp_link1,   = ax1.plot([], [], '--', color='purple', linewidth=2,  alpha=0.45, solid_capstyle='round')
+        sp_link2,   = ax1.plot([], [], '--', color='blue', linewidth=1.5, alpha=0.45, solid_capstyle='round')
+        tip_trace,  = ax1.plot([], [], '-', color='cyan', linewidth=1.2, alpha=0.7)
+        ax2.legend(loc='upper right', fontsize=8)
+        ax1.plot([], [], '--', color='cyan', alpha=0.6, label='setpoint')
+        ax1.plot([], [], '-', color='cyan', alpha=0.7,  label='actual tip')
+        ax1.legend(loc='upper right', fontsize=8)
+
+        _pid_t1_hist = []
+        _pid_t2_hist = []
+        _tip_x_hist  = []
+        _tip_y_hist  = []
+
         def _reset_sim():
             sim.upperArm.setPosition(path[0][0]);  sim.upperArm.velocity = 0.0
             sim.forearm.setPosition(path[0][1]);   sim.forearm.velocity  = 0.0
             pid1.reset();  pid2.reset()
+            _pid_t1_hist.clear();  _pid_t2_hist.clear()
+            _tip_x_hist.clear();   _tip_y_hist.clear()
+            pid_trace.set_data([], [])
+            tip_trace.set_data([], [])
 
         _reset_sim()
     else:
@@ -175,10 +169,27 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
             fk = forward_kinematics(sim.upperArm.position, sim.forearm.position)
             ex, ey = fk[0];  tx, ty = fk[1]
             t1_dot, t2_dot = sim.upperArm.position, sim.forearm.position
+
+            # setpoint ghost arm
+            sp_fk = forward_kinematics(t1_arr[idx], t2_arr[idx])
+            sp_ex, sp_ey = sp_fk[0];  sp_tx, sp_ty = sp_fk[1]
+            sp_link1.set_data([0, sp_ex], [0, sp_ey])
+            sp_link2.set_data([sp_ex, sp_tx], [sp_ey, sp_ty])
+
+            # accumulate actual traces
+            _pid_t1_hist.append(t1_dot)
+            _pid_t2_hist.append(t2_dot)
+            _tip_x_hist.append(tx)
+            _tip_y_hist.append(ty)
+            pid_trace.set_data(_pid_t1_hist, _pid_t2_hist)
+            tip_trace.set_data(_tip_x_hist, _tip_y_hist)
+
+            sp_dot.set_data([t1_arr[idx]], [t2_arr[idx]])
         else:
             ex, ey = elbow_x[idx], elbow_y[idx]
             tx, ty = tip_x[idx],   tip_y[idx]
             t1_dot, t2_dot = t1_arr[idx], t2_arr[idx]
+            sp_dot.set_data([], [])
 
         _l1x[1] = ex;  _l1y[1] = ey
         _l2x[0] = ex;  _l2x[1] = tx
@@ -187,7 +198,10 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
         link2.set_data(_l2x, _l2y)
         elbow_dot.set_data([ex], [ey])
         dot.set_data([t1_dot], [t2_dot])
-        return link1, link2, elbow_dot, dot
+
+        if use_pid:
+            return link1, link2, elbow_dot, dot, sp_dot, pid_trace, sp_link1, sp_link2, tip_trace
+        return link1, link2, elbow_dot, dot, sp_dot
 
     def on_key(event):
         if event.key == ' ':
