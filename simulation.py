@@ -25,7 +25,7 @@ class SingleJointArmSim:
     dt = 0.0; # time step for simulation in seconds
     motorPowered = True;
 
-    def __init__(self, mass = 1, 
+    def __init__(self, mass = 5, 
                  length = 0.25, 
                  distCOM = None,
                  moi = None, 
@@ -57,7 +57,8 @@ class SingleJointArmSim:
         self.torque = torque
         self.acceleration = self.torque / self.moi
         self.velocity += self.acceleration * self.dt
-        self.position += self.velocity * self.dt
+        # assumes constant acceleration over dt
+        self.position += (self.velocity - self.acceleration * self.dt / 2) * self.dt
         self.endpoint = (self.length * math.cos(self.position), 
                          self.length * math.sin(self.position))
 
@@ -146,8 +147,8 @@ def animateFreeFall(arm, t1_init=math.pi/2, t2_init=0.0, w1_init=0.0, w2_init=0.
     t2_init:  initial forearm angle relative to upper arm in radians
     w1_init, w2_init: initial angular velocities in rad/s
     """
-    arm.upperArm.setMotorPowered(True)
-    arm.forearm.setMotorPowered(True)
+    arm.upperArm.setMotorPowered(False)
+    arm.forearm.setMotorPowered(False)
     arm.upperArm.setPosition(t1_init)
     arm.upperArm.velocity = w1_init
     arm.forearm.setPosition(t2_init)

@@ -1,4 +1,6 @@
 import math
+
+import numpy as np
 from torus import torus_diff
 
 class PIDController:
@@ -23,7 +25,7 @@ class PIDController:
 
 class TrajectoryFollower:
 
-    def __init__(self, arm_sim, controller1, controller2, kV = (0.1, 0.1), kG = (2, -1)):
+    def __init__(self, arm_sim, controller1, controller2, kV = (0.35, 0.1), kG = (0.0, 0.0)):
         self.controller1 = controller1
         self.controller2 = controller2
         self.arm_sim = arm_sim
@@ -38,8 +40,11 @@ class TrajectoryFollower:
         upper_pid = self.controller1.compute(self.arm_sim.upperArm.position, setpoint[0], dt)
         forearm_pid = self.controller2.compute(self.arm_sim.forearm.position, setpoint[1], dt)
 
-        # need to add torus wraparound
-        velocity = ((trajectory[step+1][0] - trajectory[step][0])/dt, (trajectory[step+1][1] - trajectory[step][1])/dt) if step < len(trajectory)-2 else (0.0,0.0)
+        current = np.array(trajectory[step])
+        next = np.array(trajectory[step+1]) if step < len(trajectory)-2 else current
+        velocity = torus_diff(next, current) / dt
+        if step == len(trajectory)-1:
+            velocity = np.array((0.0, 0.0))
         upper_ff = velocity[0] * self.kV[0]
         forearm_ff = velocity[1] * self.kV[1]
 
@@ -50,4 +55,4 @@ class TrajectoryFollower:
         forearm_voltage = forearm_pid + forearm_ff + forearm_gravity_ff
 
         self.arm_sim.upperArm.setVoltage(upper_voltage)
-        self.arm_sim.forearm.setVoltage(forearm_voltage)
+        self.arm_sim.forearm.setVoltage(0)

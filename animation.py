@@ -4,16 +4,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.widgets as mwidgets
+from matplotlib.patches import Circle, Polygon
 import math
 import arm
 from arm import forward_kinematics, is_collision, is_collision_batch
+import logger
 from obstacles import Obstacle, ObstacleType
 from pathing import rrt, smooth_path, interpolate_path, is_reachable
 from matplotlib.animation import FuncAnimation
-from arm_sim import SingleJointArmSim, DoubleJointArmSim
+from simulation import SingleJointArmSim, DoubleJointArmSim
 from control import PIDController, TrajectoryFollower
+from logger import SimLogger
 
-def draw_cspace(obstacles):
+def generate_cspace(obstacles):
+    '''returns a 2D grid of collision values for each (t1,t2) config'''
     N = 200
     T1, T2 = np.meshgrid(np.linspace(-math.pi, math.pi, N),
                          np.linspace(-math.pi, math.pi, N))
@@ -38,11 +42,11 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     for obstacle in obstacles:
         if obstacle.getType() == ObstacleType.CIRCLE:
             center, radius = obstacle.getParams()
-            ax1.add_patch(plt.Circle(center, radius, color='#D85A30', alpha=0.4))
+            ax1.add_patch(Circle(center, radius, color='#D85A30', alpha=0.4))
         elif obstacle.getType() == ObstacleType.POLYGON:
             vertices = obstacle.getParams()
             if len(vertices) >= 3:
-                ax1.add_patch(plt.Polygon(vertices, color='#D85A30', alpha=0.4))
+                ax1.add_patch(Polygon(vertices, color='#D85A30', alpha=0.4))
             else:
                 ax1.plot([vertices[0][0], vertices[1][0]], [vertices[0][1], vertices[1][1]],
                          color='#D85A30', linewidth=3, alpha=0.8, solid_capstyle='round')
@@ -95,13 +99,14 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     _l2y = np.array([0.0, 0.0])
 
     if use_pid:
-        upperArm = SingleJointArmSim()
-        forearm  = SingleJointArmSim()
+        upperArm = SingleJointArmSim(length=arm.L1/100)
+        forearm  = SingleJointArmSim(length=arm.L2/100)
         sim = DoubleJointArmSim(upperArm, forearm)
         upperArm.setMotorPowered(True)
         forearm.setMotorPowered(True)
         pid1 = PIDController(Kp=10.0, Ki=0.0, Kd=1.0)
         pid2 = PIDController(Kp=10.0, Ki=0.0, Kd=1.0)
+
         traj_follower = TrajectoryFollower(sim, pid1, pid2)
 
         # PID comparison artists
@@ -139,11 +144,16 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     _step  = [0]
     paused = [False]
 
+    logger = SimLogger()  # pass your existing figure in
+
     def update(_):
         idx = min(_step[0], len(path) - 1)
         _step[0] += 1
 
         if use_pid:
+            logger.recordData("voltage1", sim.upperArm.voltage)
+            logger.recordData("volatge2", sim.forearm.voltage)
+            logger.update()
             traj_follower.follow_trajectory(path, idx)
             sim.update()
             fk = forward_kinematics(sim.upperArm.position, sim.forearm.position)
@@ -193,7 +203,24 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
         elif event.key == 'right' and paused[0]:
             update(None);  fig.canvas.draw()
         elif event.key == 'left' and paused[0]:
-            _step[0] = max(_step[0] - 2, 0)
+            target = max(_step[0] - 2, 0)
+            if use_pid:
+                # can't reverse physics — reset and replay forward to target
+                _reset_sim()
+                for i in range(target):
+                    idx = min(i, len(path) - 1)
+                    traj_follower.follow_trajectory(path, idx)
+                    sim.update()
+                    t1 = sim.upperArm.position
+                    t2 = sim.forearm.position
+                    _pid_t1_hist.append(t1)
+                    _pid_t2_hist.append(t2)
+                    fk = forward_kinematics(t1, t2)
+                    _tip_x_hist.append(fk[1][0])
+                    _tip_y_hist.append(fk[1][1])
+                pid_trace.set_data(_pid_t1_hist, _pid_t2_hist)
+                tip_trace.set_data(_tip_x_hist, _tip_y_hist)
+            _step[0] = target
             update(None);  fig.canvas.draw()
 
     fig.canvas.mpl_connect('key_press_event', on_key)
@@ -204,7 +231,7 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
 
     plt.tight_layout()
     fig.subplots_adjust(bottom=0.1)
-    ax_btn = fig.add_axes([0.45, 0.02, 0.12, 0.05])
+    ax_btn = fig.add_axes((0.45, 0.02, 0.12, 0.05))
     btn_reset = mwidgets.Button(ax_btn, 'Reset')
 
     def on_reset(_):
@@ -218,8 +245,8 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     btn_reset.on_clicked(on_reset)
 
     # prevent garbage collection — FuncAnimation and Button are local vars
-    fig._anim = ani
-    fig._btn  = btn_reset
+    fig._anim = ani # type: ignore
+    fig._btn  = btn_reset # type: ignore
 
 # ── Obstacle Setup ────────────────────────────────────────────────────────────
 
@@ -240,17 +267,17 @@ status_text = ax_setup.text(
     ha='center', va='bottom', fontsize=11, color='steelblue'
 )
 
-ax_btn_circle  = fig_setup.add_axes([0.02, 0.04, 0.20, 0.08])
-ax_btn_polygon = fig_setup.add_axes([0.26, 0.04, 0.20, 0.08])
-ax_btn_undo    = fig_setup.add_axes([0.50, 0.04, 0.20, 0.08])
-ax_btn_done    = fig_setup.add_axes([0.74, 0.04, 0.22, 0.08])
+ax_btn_circle  = fig_setup.add_axes((0.02, 0.04, 0.20, 0.08))
+ax_btn_polygon = fig_setup.add_axes((0.26, 0.04, 0.20, 0.08))
+ax_btn_undo    = fig_setup.add_axes((0.50, 0.04, 0.20, 0.08))
+ax_btn_done    = fig_setup.add_axes((0.74, 0.04, 0.22, 0.08))
 btn_circle  = mwidgets.Button(ax_btn_circle,  'Add Circle')
 btn_polygon = mwidgets.Button(ax_btn_polygon, 'Add Polygon/Line')
 btn_undo    = mwidgets.Button(ax_btn_undo,    'Undo Last')
 btn_done    = mwidgets.Button(ax_btn_done,    'Done')
 
-ax_tb_l1 = fig_setup.add_axes([0.20, 0.14, 0.18, 0.06])
-ax_tb_l2 = fig_setup.add_axes([0.62, 0.14, 0.18, 0.06])
+ax_tb_l1 = fig_setup.add_axes((0.20, 0.14, 0.18, 0.06))
+ax_tb_l2 = fig_setup.add_axes((0.62, 0.14, 0.18, 0.06))
 tb_l1 = mwidgets.TextBox(ax_tb_l1, 'L1:', initial=str(arm.L1))
 tb_l2 = mwidgets.TextBox(ax_tb_l2, 'L2:', initial=str(arm.L2))
 
@@ -294,13 +321,13 @@ def _redraw_obstacles():
     for obs in OBSTACLE:
         if obs.getType() == ObstacleType.CIRCLE:
             center, radius = obs.getParams()
-            patch = plt.Circle(center, radius, color='#D85A30', alpha=0.5)
+            patch = Circle(center, radius, color='#D85A30', alpha=0.5)
             ax_setup.add_patch(patch)
             _obstacle_artists.append(patch)
         else:
             verts = obs.getParams()
             if len(verts) >= 3:
-                patch = plt.Polygon(verts, color='#D85A30', alpha=0.5)
+                patch = Polygon(verts, color='#D85A30', alpha=0.5)
                 ax_setup.add_patch(patch)
                 _obstacle_artists.append(patch)
             else:
@@ -352,9 +379,9 @@ def _on_setup_click(event):
     x, y = event.xdata, event.ydata
 
     if _mode[0] == 'circle_center':
-        _tmp_center[0] = np.array([x, y])
+        _tmp_center[0] = np.array([x, y]) # type: ignore
         dot, = ax_setup.plot(x, y, 'r+', markersize=14, markeredgewidth=2)
-        _tmp_center_dot[0] = dot
+        _tmp_center_dot[0] = dot # type: ignore
         _set_mode('circle_edge', 'Click a point on the edge to set the radius')
 
     elif _mode[0] == 'circle_edge':
@@ -395,13 +422,13 @@ plt.show()
 
 # ── C-space planning ──────────────────────────────────────────────────────────
 
-grid = draw_cspace(OBSTACLE)
+grid = generate_cspace(OBSTACLE)
 
 fig, ax = plt.subplots(figsize=(6, 6))
 ax.set_facecolor('white')
 cmap = mcolors.ListedColormap(['white', '#D85A30'])
 ax.imshow(grid, origin='lower',
-          extent=[-math.pi, math.pi, -math.pi, math.pi],
+          extent=(-math.pi, math.pi, -math.pi, math.pi),
           cmap=cmap, vmin=0, vmax=1)
 ax.set_xlabel('θ₁')
 ax.set_ylabel('θ₂')
@@ -418,13 +445,10 @@ def on_click(event):
     marker, = ax.plot(event.xdata, event.ydata, color, markersize=12)
     markers.append(marker)
     fig.canvas.draw()
-
-def on_key(event):
-    if event.key == 'enter' and len(clicks) == 2:
+    if len(clicks) == 2:
         plt.close()
 
 fig.canvas.mpl_connect('button_press_event', on_click)
-fig.canvas.mpl_connect('key_press_event', on_key)
 plt.show()
 
 if len(clicks) < 2:
@@ -449,8 +473,5 @@ else:
             print("path length after smoothing:", len(smoothed))
             interp_path     = interpolate_path(path)
             interp_smoothed = interpolate_path(smoothed)
-            # animate_path(interp_path,     interp_path,     OBSTACLE, title='raw RRT')
-            # animate_path(interp_smoothed, interp_smoothed, OBSTACLE, title='smoothed')
             animate_path(interp_smoothed, interp_smoothed, OBSTACLE, title='smoothed — PID', use_pid=True)
-
-plt.show()
+            plt.show()
