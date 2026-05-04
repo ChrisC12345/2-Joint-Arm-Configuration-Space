@@ -8,13 +8,12 @@ from matplotlib.patches import Circle, Polygon
 import math
 import arm
 from arm import forward_kinematics, is_collision, is_collision_batch
-import logger
 from obstacles import Obstacle, ObstacleType
 from pathing import rrt, smooth_path, interpolate_path, is_reachable
 from matplotlib.animation import FuncAnimation
 from simulation import SingleJointArmSim, DoubleJointArmSim
 from control import PIDController, TrajectoryFollower
-from logger import SimLogger
+from logger import Logger
 
 def generate_cspace(obstacles):
     '''returns a 2D grid of collision values for each (t1,t2) config'''
@@ -62,6 +61,8 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     ax1.plot([start[0][0], start[1][0]], [start[0][1], start[1][1]], color='red',   linewidth=2, solid_capstyle='round')
     ax1.plot([0, goal[0][0]],  [0, goal[0][1]],  color='green', linewidth=2, solid_capstyle='round')
     ax1.plot([goal[0][0], goal[1][0]],  [goal[0][1], goal[1][1]],  color='green', linewidth=2, solid_capstyle='round')
+    ax1.plot(start[0][0], start[0][1], 'ro', markersize=6, zorder=5)
+    ax1.plot(goal[0][0],  goal[0][1],  'go', markersize=6, zorder=5)
 
     # right plot — c-space with rrt_path as reference
     ax2.set_facecolor('white')
@@ -87,7 +88,7 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
         ax2.plot(seg_t1, seg_t2, 'm-', linewidth=1.5, alpha=0.5)
 
     dot,    = ax2.plot([], [], 'bo', markersize=8, zorder=5, label='actual')
-    sp_dot, = ax2.plot([], [], 'o',  markersize=6, color='orange', zorder=4, label='setpoint')
+    sp_dot, = ax2.plot([], [], 'o',  markersize=6, color='cyan', zorder=4, label='setpoint')
 
     t1_arr = np.array([p[0] for p in path])
     t2_arr = np.array([p[1] for p in path])
@@ -110,19 +111,20 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
         traj_follower = TrajectoryFollower(sim, pid1, pid2)
 
         # PID comparison artists
-        pid_trace,  = ax2.plot([], [], '-', color='cyan', linewidth=1.5, alpha=0.8, zorder=3, label='actual path')
+        pid_trace,  = ax2.plot([], [], '-', color='orange', linewidth=1.5, alpha=0.8, zorder=3, label='actual path')
         sp_link1,   = ax1.plot([], [], '--', color='purple', linewidth=2,  alpha=0.45, solid_capstyle='round')
         sp_link2,   = ax1.plot([], [], '--', color='blue', linewidth=1.5, alpha=0.45, solid_capstyle='round')
-        tip_trace,  = ax1.plot([], [], '-', color='cyan', linewidth=1.2, alpha=0.7)
+        tip_trace,  = ax1.plot([], [], '-', color='orange', linewidth=1.2, alpha=0.7)
         ax2.legend(loc='upper right', fontsize=8)
-        ax1.plot([], [], '--', color='cyan', alpha=0.6, label='setpoint')
-        ax1.plot([], [], '-', color='cyan', alpha=0.7,  label='actual tip')
+        ax1.plot([], [], '--', color='gray', alpha=0.6, label='setpoint')
+        ax1.plot([], [], '-', color='gray', alpha=0.7,  label='actual tip')
         ax1.legend(loc='upper right', fontsize=8)
 
         _pid_t1_hist = []
         _pid_t2_hist = []
         _tip_x_hist  = []
         _tip_y_hist  = []
+        _state_history = []  # snapshot before each step: (ua_pos, ua_vel, fa_pos, fa_vel, p1i, p1e, p2i, p2e)
 
         def _reset_sim():
             sim.upperArm.setPosition(path[0][0]);  sim.upperArm.velocity = 0.0
@@ -130,6 +132,7 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
             pid1.reset();  pid2.reset()
             _pid_t1_hist.clear();  _pid_t2_hist.clear()
             _tip_x_hist.clear();   _tip_y_hist.clear()
+            _state_history.clear()
             pid_trace.set_data([], [])
             tip_trace.set_data([], [])
 
@@ -144,16 +147,20 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
     _step  = [0]
     paused = [False]
 
-    logger = SimLogger()  # pass your existing figure in
-
     def update(_):
         idx = min(_step[0], len(path) - 1)
         _step[0] += 1
 
         if use_pid:
-            logger.recordData("voltage1", sim.upperArm.voltage)
-            logger.recordData("volatge2", sim.forearm.voltage)
-            logger.update()
+            _state_history.append((
+                sim.upperArm.position, sim.upperArm.velocity,
+                sim.forearm.position,  sim.forearm.velocity,
+                pid1.integral, pid1.prev_error,
+                pid2.integral, pid2.prev_error,
+            ))
+            Logger.recordData("voltage1", sim.upperArm.voltage)
+            Logger.recordData("voltage2", sim.forearm.voltage)
+            Logger.update()
             traj_follower.follow_trajectory(path, idx)
             sim.update()
             fk = forward_kinematics(sim.upperArm.position, sim.forearm.position)
@@ -193,6 +200,25 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
             return link1, link2, elbow_dot, dot, sp_dot, pid_trace, sp_link1, sp_link2, tip_trace
         return link1, link2, elbow_dot, dot, sp_dot
 
+    _animated = [link1, link2, elbow_dot, dot, sp_dot]
+    if use_pid:
+        _animated += [pid_trace, sp_link1, sp_link2, tip_trace]
+
+    _bg = [None]
+
+    def _on_draw(event):
+        _bg[0] = fig.canvas.copy_from_bbox(fig.bbox)  # type: ignore[attr-defined]
+
+    fig.canvas.mpl_connect('draw_event', _on_draw)
+
+
+    def _blit_step():
+        if _bg[0] is not None:
+            fig.canvas.restore_region(_bg[0])  # type: ignore[attr-defined]
+        for a in _animated:
+            a.axes.draw_artist(a)
+            fig.canvas.blit(a.axes.bbox)  # type: ignore[attr-defined]
+
     def on_key(event):
         if event.key == ' ':
             if paused[0]:
@@ -201,27 +227,22 @@ def animate_path(path, rrt_path, obstacles, title='path', use_pid=False):
                 ani.pause()
             paused[0] = not paused[0]
         elif event.key == 'right' and paused[0]:
-            update(None);  fig.canvas.draw()
+            update(None);  _blit_step()
         elif event.key == 'left' and paused[0]:
             target = max(_step[0] - 2, 0)
-            if use_pid:
-                # can't reverse physics — reset and replay forward to target
-                _reset_sim()
-                for i in range(target):
-                    idx = min(i, len(path) - 1)
-                    traj_follower.follow_trajectory(path, idx)
-                    sim.update()
-                    t1 = sim.upperArm.position
-                    t2 = sim.forearm.position
-                    _pid_t1_hist.append(t1)
-                    _pid_t2_hist.append(t2)
-                    fk = forward_kinematics(t1, t2)
-                    _tip_x_hist.append(fk[1][0])
-                    _tip_y_hist.append(fk[1][1])
+            if use_pid and target < len(_state_history):
+                ua_pos, ua_vel, fa_pos, fa_vel, p1i, p1e, p2i, p2e = _state_history[target]
+                sim.upperArm.position = ua_pos;  sim.upperArm.velocity = ua_vel
+                sim.forearm.position  = fa_pos;  sim.forearm.velocity  = fa_vel
+                pid1.integral = p1i;  pid1.prev_error = p1e
+                pid2.integral = p2i;  pid2.prev_error = p2e
+                del _pid_t1_hist[target:];  del _pid_t2_hist[target:]
+                del _tip_x_hist[target:];   del _tip_y_hist[target:]
+                del _state_history[target:]
                 pid_trace.set_data(_pid_t1_hist, _pid_t2_hist)
                 tip_trace.set_data(_tip_x_hist, _tip_y_hist)
             _step[0] = target
-            update(None);  fig.canvas.draw()
+            update(None);  _blit_step()
 
     fig.canvas.mpl_connect('key_press_event', on_key)
 

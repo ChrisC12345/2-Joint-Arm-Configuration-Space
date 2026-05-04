@@ -25,7 +25,7 @@ class PIDController:
 
 class TrajectoryFollower:
 
-    def __init__(self, arm_sim, controller1, controller2, kV = (0.35, 0.1), kG = (0.0, 0.0)):
+    def __init__(self, arm_sim, controller1, controller2, kV = (0.35, 0.1), kG = (4, 2)):
         self.controller1 = controller1
         self.controller2 = controller2
         self.arm_sim = arm_sim
@@ -55,4 +55,4 @@ class TrajectoryFollower:
         forearm_voltage = forearm_pid + forearm_ff + forearm_gravity_ff
 
         self.arm_sim.upperArm.setVoltage(upper_voltage)
-        self.arm_sim.forearm.setVoltage(0)
+        self.arm_sim.forearm.setVoltage(forearm_voltage)

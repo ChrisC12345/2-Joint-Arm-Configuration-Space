@@ -1,6 +1,7 @@
 import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from logger import Logger
 
 
 class SingleJointArmSim:
@@ -25,7 +26,7 @@ class SingleJointArmSim:
     dt = 0.0; # time step for simulation in seconds
     motorPowered = True;
 
-    def __init__(self, mass = 5, 
+    def __init__(self, mass = 2, 
                  length = 0.25, 
                  distCOM = None,
                  moi = None, 
@@ -134,6 +135,8 @@ class DoubleJointArmSim:
 
     def update(self):
         externalTorques = self.calculateExternalTorques()
+        Logger.recordData("tau_ext1", externalTorques[0])
+        Logger.recordData("tau_ext2", externalTorques[1])
         self.upperArm.update(externalTorques[0])
         self.forearm.update(externalTorques[1])
 
