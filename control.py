@@ -2,6 +2,7 @@
 
 import math
 
+from logger import Logger
 import numpy as np
 from torus import torus_diff
 
@@ -27,7 +28,7 @@ class PIDController:
 
 class TrajectoryFollower:
 
-    def __init__(self, arm_sim, controller1, controller2, kV = (0.35, 0.1), kG = (4, 2)):
+    def __init__(self, arm_sim, controller1, controller2, kV = (0.35, 0.1), kG = (5, 3)):
         self.controller1 = controller1
         self.controller2 = controller2
         self.arm_sim = arm_sim
@@ -51,7 +52,9 @@ class TrajectoryFollower:
         forearm_ff = velocity[1] * self.kV[1]
 
         upper_gravity_ff = math.cos(self.arm_sim.upperArm.position) * self.kG[0]
-        forearm_gravity_ff = math.cos(self.arm_sim.forearm.position) * self.kG[1]
+        forearm_gravity_ff = math.cos(self.arm_sim.forearm.position + self.arm_sim.upperArm.position) * self.kG[1]
+
+        Logger.recordData("forearm_g", forearm_gravity_ff)
 
         upper_voltage = upper_pid + upper_ff + upper_gravity_ff
         forearm_voltage = forearm_pid + forearm_ff + forearm_gravity_ff

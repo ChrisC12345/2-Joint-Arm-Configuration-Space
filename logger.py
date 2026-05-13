@@ -19,6 +19,7 @@ class Logger:
         cls._ax.set_facecolor('#1a1a2e')
         cls._ax.axis('off')
         cls._fig.canvas.manager.set_window_title('Logger')
+        cls._ax.format_coord = lambda *_: ''
         plt.show(block=False)
 
     @classmethod
@@ -30,8 +31,7 @@ class Logger:
     def update(cls):
         cls._init()
 
-        n = len(cls._data)
-        if n == 0:
+        if not cls._data:
             return
 
         if set(cls._data.keys()) != set(cls._text_objects.keys()):
@@ -49,16 +49,13 @@ class Logger:
             for i, key in enumerate(cls._data):
                 color = colors[i % len(colors)]
                 y = start_y - i * row_height * 2.2
-
                 cls._ax.axhline(y + row_height * 0.6, color='#2a2a4a', lw=0.5, xmin=0.02, xmax=0.98)
-
                 cls._ax.text(0.04, y, key, color='#8888aa', fontsize=7.5,
-                            ha='left', va='top', transform=cls._ax.transAxes,
-                            fontfamily='monospace')
-
-                txt = cls._ax.text(0.96, y, "—", color=color, fontsize=8,
-                                ha='right', va='top', transform=cls._ax.transAxes,
-                                fontfamily='monospace', fontweight='bold')
+                             ha='left', va='top', transform=cls._ax.transAxes,
+                             fontfamily='monospace')
+                txt = cls._ax.text(0.96, y, '—', color=color, fontsize=8,
+                                   ha='right', va='top', transform=cls._ax.transAxes,
+                                   fontfamily='monospace', fontweight='bold')
                 cls._text_objects[key] = txt
 
         for key, txt in cls._text_objects.items():

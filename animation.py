@@ -358,8 +358,8 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
             _pid_t2_hist.append(t2_dot)
             _tip_x_hist.append(tx)
             _tip_y_hist.append(ty)
-            pid_trace.set_data(_pid_t1_hist, _pid_t2_hist)
-            tip_trace.set_data(_tip_x_hist, _tip_y_hist)
+            pid_trace.set_data(_pid_t1_hist[-500:], _pid_t2_hist[-500:])
+            tip_trace.set_data(_tip_x_hist[-500:], _tip_y_hist[-500:])
             sp_dot.set_data([robot.setpoint_t1], [robot.setpoint_t2])
         else:
             idx = min(_step[0], len(path) - 1)
