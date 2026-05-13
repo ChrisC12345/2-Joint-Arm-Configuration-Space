@@ -1,5 +1,6 @@
-# type: ignore
-# logger.py
+#type: ignore
+"""simple logger for displaying key-value pairs in a small window during simulation or animation"""
+
 import matplotlib.pyplot as plt
 
 class Logger:

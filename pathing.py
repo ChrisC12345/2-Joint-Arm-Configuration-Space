@@ -1,4 +1,4 @@
-# RRT path planning for 2-link arm in C-space
+"""RRT path planning and path smoothing for a 2-link arm in C-space, treating the space as a torus."""
 
 import numpy as np
 import math

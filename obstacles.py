@@ -1,5 +1,6 @@
-from enum import Enum
+"""defines obstacle classes and collision checking functions for a 2D arm simulation"""
 
+from enum import Enum
 import numpy as np
 
 class ObstacleType(Enum):

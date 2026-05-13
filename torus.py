@@ -1,4 +1,6 @@
-# file for doing torus calculations
+"""utility functions for working with angles in a toroidal space, 
+used for the C-space of a 2-link arm where each joint angle wraps around at 2*pi."""
+
 import math
 import numpy as np
 

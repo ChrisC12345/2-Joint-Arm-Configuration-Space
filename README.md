@@ -1,4 +1,4 @@
-# Doulbe Jointed Arm Configuration Space Motion Planner
+# Double Jointed Arm Configuration Space Motion Planner
 Motion planning — finding a collision-free path for a robot arm — is a fundamental problem in robotics. This project implements it from scratch using configuration space theory and the RRT algorithm, with an interactive visualization.
 
 This project creates and graphs a 2d configuration space for a double-jointed arm with circular and polygonal obstacles. 

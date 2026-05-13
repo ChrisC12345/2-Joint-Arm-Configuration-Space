@@ -1,4 +1,5 @@
-# simple 2-link arm kinematics and collision checking
+"""kinematics and collision checking for a 2-link arm in 2D with circular and polygonal obstacles"""
+
 import math
 import numpy as np
 from enum import Enum

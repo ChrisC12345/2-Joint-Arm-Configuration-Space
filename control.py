@@ -1,3 +1,5 @@
+"""PID control logic for following a trajectory with a 2-link arm simulation"""
+
 import math
 
 import numpy as np

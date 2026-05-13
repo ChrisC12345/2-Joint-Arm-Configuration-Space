@@ -1,3 +1,5 @@
+"""calculates the physics of a single or double joint arm with motors at the joints"""
+
 import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
