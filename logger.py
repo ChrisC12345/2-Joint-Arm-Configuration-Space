@@ -43,7 +43,10 @@ class Logger:
             cls._text_objects.clear()
 
             colors = ['#56d4f5', '#f5a623', '#a78bfa', '#7defa5', '#f87171']
-            row_height = 0.045
+            n = len(cls._data)
+            row_height = min(0.045, 0.97 / (n * 2.2)) if n > 0 else 0.045
+            fig_h = max(5, n * 0.55)
+            cls._fig.set_size_inches(3, fig_h, forward=True)
             start_y = 0.97
 
             for i, key in enumerate(cls._data):

@@ -1,6 +1,7 @@
 """calculates the physics of a single or double joint arm with motors at the joints"""
 
 import math
+from matplotlib.pylab import det
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from logger import Logger
@@ -8,45 +9,38 @@ from logger import Logger
 
 class SingleJointArmSim:
     """simulates a single joint arm with a motor at the joint"""
-    mass = 0.0; # mass of the arm in kg
-    length = 0.0; # length of the single segmentarm in m
-    distCOM = 0.0; # distance from joint to center of mass of the arm in m
-    moi = 0.0; # moment of inertia of the arm about the joint in kg*m^2
-    kE = 0.0; # back-emf constant of the motor in V/(rad/s)
-    resistance = 0.0; # resistance of the motor in ohms
-    nominalVoltage = 0.0; # maximum voltage that can be applied to the motor in volts
 
-    position = 0.0; # angle of the arm in radians relative to motor, ccw pos
-    velocity = 0.0; # angular velocity of the arm in radians/s, ccw pos
-    acceleration = 0.0; # angular acceleration of the arm in radians/s^2, ccw pos
-    torque = 0.0; # net torque applied to the arm in N*m, ccw pos
-    endpoint = (0.0, 0.0); # (x,y) position of the end of the arm in m, relative to joint
-
-    voltage = 0.0; # voltage applied to the motor in volts, positive voltage produces positive torque
-    current = 0.0; # current through the motor in amps, positive current produces positive torque
-
-    dt = 0.0; # time step for simulation in seconds
-    motorPowered = True;
-
-    def __init__(self, mass = 2, 
-                 length = 0.25, 
+    def __init__(self, mass = 10,
+                 length = 0.25,
                  distCOM = None,
-                 moi = None, 
-                 kE = 0.02, 
-                 resistance = 0.03, 
+                 moi = None,
+                 gear_ratio = 20.0,
+                 kE = 0.02,
+                 resistance = 0.03,
                  nominalVoltage = 12.0,
                  dt = 0.02):
         self.mass = mass
         self.length = length
-        self.distCOM = distCOM if distCOM is not None else length / 2
+        self.dist_COM = distCOM if distCOM is not None else length / 2
         self.moi = moi if moi is not None else mass * (length ** 2) / 3
+        self.gear_ratio = gear_ratio
         self.kE = kE
         self.resistance = resistance
-        self.nominalVoltage = nominalVoltage
+        self.nominal_voltage = nominalVoltage
         self.dt = dt
 
+        self.position = 0.0
+        self.velocity = 0.0
+        self.acceleration = 0.0
+        self.motor_torque = 0.0
+        self.torque = 0.0
+        self.endpoint = (0.0, 0.0)
+        self.voltage = 0.0
+        self.current = 0.0
+        self.motor_powered = True
+
     def setMotorPowered(self, motorPowered):
-        self.motorPowered = motorPowered
+        self.motor_powered = motorPowered
 
     def setPosition(self, position):
         self.position = position
@@ -54,37 +48,29 @@ class SingleJointArmSim:
                          self.length * math.sin(self.position))
     
     def setVoltage(self, voltage):
-        self.voltage = max(-self.nominalVoltage, min(self.nominalVoltage, voltage))
+        self.voltage = max(-self.nominal_voltage, min(self.nominal_voltage, voltage))
 
-    def updateTorque(self, torque):
+    def update(self, torque):
         self.torque = torque
         self.acceleration = self.torque / self.moi
         self.velocity += self.acceleration * self.dt
-        # assumes constant acceleration over dt
         self.position += (self.velocity - self.acceleration * self.dt / 2) * self.dt
         self.endpoint = (self.length * math.cos(self.position), 
                          self.length * math.sin(self.position))
 
-    def update(self, externalTorque):
-        if self.motorPowered:
-            self.current = (self.voltage - self.kE * self.velocity) / self.resistance
-        else:
-            self.current = 0
-        self.torque = self.kE * self.current + externalTorque
-        self.updateTorque(self.torque)
+    def set_motor_torque(self):
+        self.current = ((self.voltage - self.kE * self.velocity * self.gear_ratio) / self.resistance 
+            if self.motor_powered else 0.0)
+        self.motor_torque = self.kE * self.current * self.gear_ratio
 
 class DoubleJointArmSim:
-    """simulates a double joint arm with motors at both joints, 
+    """simulates a double joint arm with motors at both joints,
     the second joint is at the end of the first segment"""
-
-    upperArm = SingleJointArmSim()
-    forearm = SingleJointArmSim()
-
-    g = -9.81; # gravity in m/s^2
 
     def __init__(self, upperArm, forearm):
         self.upperArm = upperArm
         self.forearm = forearm
+        self.g = -9.81
     
     def calculateExternalTorques(self):
         """Returns (tau_ext1, tau_ext2): external torques on each joint from gravity
@@ -104,8 +90,8 @@ class DoubleJointArmSim:
           G1 = -(m1*r1 + m2*l1)*g*cos(t1) - m2*r2*g*cos(t1+t2)
           G2 = -m2*r2*g*cos(t1+t2)
         """
-        m1, l1, r1 = self.upperArm.mass, self.upperArm.length, self.upperArm.distCOM
-        m2, r2      = self.forearm.mass, self.forearm.distCOM
+        m1, l1, r1 = self.upperArm.mass, self.upperArm.length, self.upperArm.dist_COM
+        m2, r2      = self.forearm.mass, self.forearm.dist_COM
         g           = self.g
 
         t1, t2 = self.upperArm.position, self.forearm.position
@@ -117,9 +103,11 @@ class DoubleJointArmSim:
         # raw external torques: -V - G
         tau_ext1 = (h * (2*w1*w2 + w2**2)
                     + (m1*r1 + m2*l1) * g * math.cos(t1)
-                    + m2*r2 * g * math.cos(t1 + t2))
+                    + m2*r2 * g * math.cos(t1 + t2)
+                    + self.upperArm.motor_torque)
         tau_ext2 = (-h * w1**2
-                    + m2*r2 * g * math.cos(t1 + t2))
+                    + m2*r2 * g * math.cos(t1 + t2)
+                    + self.forearm.motor_torque)
 
         # full mass matrix (from Lagrangian)
         I1, I2 = self.upperArm.moi, self.forearm.moi
@@ -127,6 +115,10 @@ class DoubleJointArmSim:
         M12 = I2 + m2*l1*r2*math.cos(t2)
         M22 = I2
         det = M11*M22 - M12**2
+
+        Logger.recordData("tau_ext1_before_solve", tau_ext1)
+        Logger.recordData("tau_ext2_before_solve", tau_ext2)
+        Logger.recordData("det", det)
 
         # solve M*alpha = tau_ext, then back out the effective per-joint torque
         # such that singleJointArmSim's  alpha = torque / moi  gives the right answer
@@ -136,9 +128,14 @@ class DoubleJointArmSim:
         return I1*alpha1, I2*alpha2
 
     def update(self):
+        self.upperArm.set_motor_torque()
+        self.forearm.set_motor_torque()
         externalTorques = self.calculateExternalTorques()
         Logger.recordData("tau_ext1", externalTorques[0])
         Logger.recordData("tau_ext2", externalTorques[1])
+        Logger.recordData("current1", self.upperArm.current)
+        Logger.recordData("motor_torque1", self.upperArm.motor_torque)
+        Logger.recordData("velocity1", self.upperArm.velocity)
         self.upperArm.update(externalTorques[0])
         self.forearm.update(externalTorques[1])
 

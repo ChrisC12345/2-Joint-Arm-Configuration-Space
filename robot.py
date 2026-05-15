@@ -34,8 +34,8 @@ class Robot:
         self.sim = DoubleJointArmSim(upperArm, forearm)
         self.sim.upperArm.setMotorPowered(True)
         self.sim.forearm.setMotorPowered(True)
-        self.pid1 = PIDController(Kp=10.0, Ki=0.0, Kd=1.0)
-        self.pid2 = PIDController(Kp=10.0, Ki=0.0, Kd=1.0)
+        self.pid1 = PIDController(Kp=6, Ki=0.0, Kd=1)
+        self.pid2 = PIDController(Kp=2, Ki=0.0, Kd=0.5)
         self.follower = TrajectoryFollower(self.sim, self.pid1, self.pid2)
         self.trajectory = trajectory
         self.step = 0

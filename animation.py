@@ -277,6 +277,8 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
                extent=[-math.pi, math.pi, -math.pi, math.pi],
                cmap=cmap, vmin=0, vmax=1)
     ax2.set_title('Configuration Space')
+    ax2.set_xlabel('θ₁')
+    ax2.set_ylabel('θ₂')
     ax2.plot([rrt_path[0][0]], [rrt_path[0][1]], 'ro', markersize=8)
     ax2.plot([rrt_path[-1][0]], [rrt_path[-1][1]], 'go', markersize=8)
 
