@@ -1,35 +1,97 @@
 # Double Jointed Arm Configuration Space Motion Planner
-Motion planning — finding a collision-free path for a robot arm — is a fundamental problem in robotics. This project implements it from scratch using configuration space theory and the RRT algorithm, with an interactive visualization.
 
-This project creates and graphs a 2d configuration space for a double-jointed arm with circular and polygonal obstacles. 
-The configuration space is a 2d coordinate plane with x and y axis representing the angles of the two segments of the arm. 
-Each point in the space represents a unique position of the arm.
-This project can generate paths between two points in the configuration space that avoids circular obstacles. 
+Motion planning — finding a collision-free path for a robot arm — is a fundamental problem in robotics. This project implements it from scratch using configuration space theory and the RRT algorithm, then closes the loop with a PID + feedforward controller running on a full physics simulation of the arm.
 
-## arm.py
-This file contains calculates elbow and tip coordinates of the arm using basic trigonometry. 
-It also has methods to check whether the arm intersects circular obstacles using vector projections.
+The configuration space (C-space) is a 2D plane whose axes represent the two joint angles. Each point in it represents a unique arm pose, and obstacles in the real world become regions to avoid in this space. A path through free C-space is a sequence of arm poses that avoids all collisions.
 
+## Architecture
 
-## pathing.py
-This file uses the rapidly exploring random tree algorithm to generate a path between a start position and end position on the configurations space. 
-Essentially, this algorithm creates a tree of nodes and every step, 
-it chooses a random direction and moves some small distance in that direction from the nearest node in the tree. 
-If the step does not pass through any obstacles, then it adds it to the tree. 
-It keeps doing this until getting within a step distance to the ending point.
-It contains a method to smooth the path using a path shortcutting algorithm that greedily removes unnecessary waypoints by checking if consecutive nodes can be connected directly.
+```
+robot.py          ← entry point: wires everything together in an FRC-style 20 ms loop
+├── animation.py  ← interactive UI: obstacle placement, C-space display, path animation
+├── pathing.py    ← RRT planner, path smoothing, interpolation, reachability check
+├── arm.py        ← forward kinematics and collision detection
+├── obstacles.py  ← obstacle classes (circle, polygon) and vectorized collision math
+├── control.py    ← PID controller and trajectory follower with feedforward
+├── simulation.py ← physics simulation using Euler-Lagrange dynamics
+├── trajectory.py ← trajectory generation (linear, trapezoidal)
+├── torus.py      ← toroidal geometry utilities for angle wraparound
+└── logger.py     ← real-time matplotlib data logger
+```
 
-## animation.py
-This file graphs the configuration space using matplotlib by checking if each pixel is inside an obstacle. 
-Users can select two starting points in the configuration space and generate a rrt path between them.
-The project will animate the arm as the path moves forward in time.
+## Files
+
+### robot.py
+Entry point. Runs an FRC-style periodic loop (20 ms timestep) that ties together path planning, the physics simulation, and PID control. Interactively places obstacles, generates a C-space, lets the user pick start and goal, runs RRT, smooths and interpolates the path, then animates the arm following it under PID control.
+
+### arm.py
+Forward kinematics and collision detection for the 2-link arm. Computes elbow and tip coordinates from joint angles, and checks both arm segments against all obstacles. Includes a vectorized `is_collision_batch` for fast C-space rasterization.
+
+### obstacles.py
+Defines `CircleObstacle` and `PolygonObstacle` classes, plus the underlying collision geometry:
+- Segment–circle via dot-product projection
+- Segment–segment via cross-product convex-quadrilateral test (with collinearity edge cases)
+- Fully vectorized numpy versions of both for batch collision queries
+
+### pathing.py
+- **RRT** — rapidly-exploring random tree in toroidal C-space with 10% goal bias and pre-allocated node storage
+- **`smooth_path`** — greedy shortcutting that removes unnecessary waypoints
+- **`interpolate_path`** — densifies the path to a fixed angular resolution
+- **`is_reachable`** — BFS flood-fill on the C-space grid to confirm a path exists before running RRT
+
+### simulation.py
+Physics simulation using the Euler-Lagrange equations of motion for a 2-link planar arm:
+- `SingleJointArmSim` — one joint with a DC motor model (back-EMF, gear ratio, resistance, nominal voltage)
+- `DoubleJointArmSim` — assembles two joints, computes the full mass matrix, Coriolis/centrifugal coupling, and gravity torques, then integrates acceleration at each timestep
+- `animateFreeFall` — free-fall simulation with no motor power, for visualizing the raw dynamics
+
+### control.py
+- **`PIDController`** — standard PID with toroidal error (handles angle wraparound correctly)
+- **`TrajectoryFollower`** — combines PID with three feedforward terms computed from the motor model:
+  - **kV** (velocity feedforward): `gear_ratio × kE`
+  - **kA** (acceleration feedforward): derived from arm inertia, motor resistance, and gear ratio
+  - **kG** (gravity feedforward): `cos(θ)` term scaled by motor back-EMF constant
+
+### trajectory.py
+Trajectory generation between C-space waypoints:
+- **`linear_traj`** — constant-speed traversal through each waypoint
+- **`trapezoidal_traj`** / **`trap_traj_endpts`** — trapezoidal velocity profile (accelerate → cruise → decelerate), respecting per-joint velocity and acceleration limits
+
+### torus.py
+Utilities for working with angles in C-space, which wraps at ±π (a torus topology):
+- `torus_diff` — shortest angular difference, wrapped to [−π, π]
+- `torus_point` — wrap an angle back into [−π, π]
+- `torus_dist_sq` — vectorized squared toroidal distance for nearest-neighbor lookup in RRT
+
+### animation.py
+Interactive matplotlib UI (requires `QtAgg` backend):
+- **Obstacle placement** — click to add circles (center + edge click) or polygons/lines (vertex clicks + Enter); undo and configurable arm lengths
+- **C-space viewer** — displays the rasterized collision grid; click start then goal
+- **`animate_path`** — side-by-side real-world and C-space animation with:
+  - PID mode: shows actual vs. setpoint arm pose, traces actual tip and C-space trajectory
+  - Kinematic mode: pure path playback without physics
+  - Spacebar to pause/resume, arrow keys to step frame-by-frame (with state rewind in PID mode)
+  - Reset button to replay from the start
+
+### logger.py
+A lightweight real-time dashboard that opens a small matplotlib window and displays key-value pairs (voltages, feedforward terms, etc.) as the simulation runs. Updates at up to 10 fps and auto-expands to two columns for larger datasets.
 
 ## Math
-- Forward kinematics: derived using trigonometry and vector addition
-- Collision detection: segment-circle intersection via vector dot product projection
-- C-space sampling: toroidal distance metric to handle angle wraparound
-- RRT: probabilistically complete, finds path with probability 1 if one exists
+
+- **Forward kinematics**: standard 2-link planar arm via trigonometry and vector addition
+- **Collision detection**: segment–circle via dot-product projection; segment–segment via cross-product orientation test
+- **Lagrangian dynamics**: full 2×2 mass matrix with Coriolis/centrifugal coupling and gravity; solved each timestep for joint accelerations
+- **C-space sampling**: toroidal distance metric so the planner handles angle wraparound correctly
+- **RRT**: probabilistically complete; with goal bias converges faster in practice
+- **Feedforward**: kV/kA derived from motor electrical model; kG from the static gravity balance condition
 
 ## Usage
-pip install numpy matplotlib
-run animation.py to simulate the arm 
+
+```
+pip install numpy matplotlib pyqt6
+python robot.py
+```
+
+1. Place obstacles in the workspace window (circles or polygons), then click **Done**
+2. Click a start point, then a goal point in the C-space window
+3. The arm animates following the planned path under PID + feedforward control
