@@ -29,18 +29,18 @@ class Robot:
         self.setpoint_t2 = 0.0
 
     def robotInit(self, trajectory):
-        upperArm = SingleJointArmSim(length=arm.L1 / 100)
+        upper_arm = SingleJointArmSim(length=arm.L1 / 100)
         forearm  = SingleJointArmSim(length=arm.L2 / 100)
-        self.sim = DoubleJointArmSim(upperArm, forearm)
-        self.sim.upperArm.setMotorPowered(True)
+        self.sim = DoubleJointArmSim(upper_arm, forearm)
+        self.sim.upper_arm.setMotorPowered(True)
         self.sim.forearm.setMotorPowered(True)
-        self.pid1 = PIDController(Kp=6, Ki=0.0, Kd=1)
-        self.pid2 = PIDController(Kp=2, Ki=0.0, Kd=0.5)
+        self.pid1 = PIDController(Kp=12, Ki=0.0, Kd=1.5)
+        self.pid2 = PIDController(Kp=3, Ki=0.0, Kd=0.3)
         self.follower = TrajectoryFollower(self.sim, self.pid1, self.pid2)
         self.trajectory = trajectory
         self.step = 0
-        self.sim.upperArm.setPosition(trajectory[0][0])
-        self.sim.upperArm.velocity = 0.0
+        self.sim.upper_arm.setPosition(trajectory[0][0])
+        self.sim.upper_arm.velocity = 0.0
         self.sim.forearm.setPosition(trajectory[0][1])
         self.sim.forearm.velocity = 0.0
         self._sync_state()
@@ -49,7 +49,7 @@ class Robot:
         if self.trajectory is None:
             return
         idx = min(self.step, len(self.trajectory) - 1)
-        Logger.recordData("voltage1", self.sim.upperArm.voltage)
+        Logger.recordData("voltage1", self.sim.upper_arm.voltage)
         Logger.recordData("voltage2", self.sim.forearm.voltage)
         Logger.update()
         self.follower.follow_trajectory(self.trajectory, idx, self.DT)
@@ -60,7 +60,7 @@ class Robot:
 
     def capture_state(self):
         return (
-            self.sim.upperArm.position, self.sim.upperArm.velocity,
+            self.sim.upper_arm.position, self.sim.upper_arm.velocity,
             self.sim.forearm.position,  self.sim.forearm.velocity,
             self.pid1.integral, self.pid1.prev_error,
             self.pid2.integral, self.pid2.prev_error,
@@ -68,8 +68,8 @@ class Robot:
 
     def restore_state(self, snapshot):
         ua_pos, ua_vel, fa_pos, fa_vel, p1i, p1e, p2i, p2e = snapshot
-        self.sim.upperArm.position = ua_pos
-        self.sim.upperArm.velocity = ua_vel
+        self.sim.upper_arm.position = ua_pos
+        self.sim.upper_arm.velocity = ua_vel
         self.sim.forearm.position  = fa_pos
         self.sim.forearm.velocity  = fa_vel
         self.pid1.integral   = p1i
@@ -83,7 +83,7 @@ class Robot:
             self.robotInit(self.trajectory)
 
     def _sync_state(self):
-        self.t1 = self.sim.upperArm.position
+        self.t1 = self.sim.upper_arm.position
         self.t2 = self.sim.forearm.position
         if self.trajectory:
             idx = min(self.step, len(self.trajectory) - 1)

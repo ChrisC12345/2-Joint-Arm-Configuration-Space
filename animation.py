@@ -1,6 +1,7 @@
 """Rendering and interaction utilities for arm path planning and PID demonstration."""
 
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.widgets as mwidgets
@@ -10,6 +11,8 @@ import arm
 from arm import forward_kinematics, is_collision_batch
 from obstacles import Obstacle, ObstacleType
 from matplotlib.animation import FuncAnimation
+
+matplotlib.use('QtAgg')
 
 
 def generate_cspace(obstacles):
@@ -260,6 +263,8 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
     link2, = ax1.plot([], [], 'b-', linewidth=3, solid_capstyle='round')
     ax1.plot([0], [0], 'ko', markersize=6)
     elbow_dot, = ax1.plot([], [], 'ko', markersize=6)
+    time_text = ax1.text(0.02, 0.97, 't = 0.00 s', transform=ax1.transAxes,
+                         fontsize=10, va='top', ha='left', fontfamily='monospace')
 
     start_fk = forward_kinematics(rrt_path[0][0], rrt_path[0][1])
     goal_fk  = forward_kinematics(rrt_path[-1][0], rrt_path[-1][1])
@@ -308,6 +313,8 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
     _l2x = np.array([0.0, 0.0])
     _l2y = np.array([0.0, 0.0])
 
+    _frame = [0]   # robot mode only — keeps counting past trajectory end
+
     if robot is not None:
         pid_trace,  = ax2.plot([], [], '-', color='orange', linewidth=1.5, alpha=0.8, zorder=3, label='actual path')
         sp_link1,   = ax1.plot([], [], '--', color='purple', linewidth=2,   alpha=0.45, solid_capstyle='round')
@@ -331,6 +338,7 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
             _state_history.clear()
             pid_trace.set_data([], [])
             tip_trace.set_data([], [])
+            _frame[0] = 0
 
         _reset_robot()
     else:
@@ -347,6 +355,7 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
         if robot is not None:
             _state_history.append(robot.capture_state())
             robot.teleopPeriodic()
+            _frame[0] += 1
             t1_dot, t2_dot = robot.t1, robot.t2
             fk = forward_kinematics(t1_dot, t2_dot)
             ex, ey = fk[0];  tx, ty = fk[1]
@@ -379,11 +388,14 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
         elbow_dot.set_data([ex], [ey])
         dot.set_data([t1_dot], [t2_dot])
 
-        if robot is not None:
-            return link1, link2, elbow_dot, dot, sp_dot, pid_trace, sp_link1, sp_link2, tip_trace
-        return link1, link2, elbow_dot, dot, sp_dot
+        sim_t = (_frame[0] * robot.DT) if robot is not None else (_step[0] * 0.02)
+        time_text.set_text(f't = {sim_t:.2f} s')
 
-    _animated = [link1, link2, elbow_dot, dot, sp_dot]
+        if robot is not None:
+            return link1, link2, elbow_dot, dot, sp_dot, pid_trace, sp_link1, sp_link2, tip_trace, time_text
+        return link1, link2, elbow_dot, dot, sp_dot, time_text
+
+    _animated = [link1, link2, elbow_dot, dot, sp_dot, time_text]
     if robot is not None:
         _animated += [pid_trace, sp_link1, sp_link2, tip_trace]
 
@@ -416,6 +428,7 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
                 if target < len(_state_history):
                     robot.restore_state(_state_history[target])
                     robot.step = target
+                    _frame[0] = target
                     del _pid_t1_hist[target:];  del _pid_t2_hist[target:]
                     del _tip_x_hist[target:];   del _tip_y_hist[target:]
                     del _state_history[target:]
@@ -428,11 +441,15 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
     fig.canvas.mpl_connect('key_press_event', on_key)
 
     ani = FuncAnimation(fig, update, frames=None,
-                        interval=20, blit=True,
+                        interval=10, blit=True,
                         cache_frame_data=False)
 
     plt.tight_layout()
     fig.subplots_adjust(bottom=0.1)
+    try:
+        fig.canvas.manager.window.move(310, 50) # type: ignore[attr-defined]
+    except Exception:
+        pass
     ax_btn = fig.add_axes((0.45, 0.02, 0.12, 0.05))
     btn_reset = mwidgets.Button(ax_btn, 'Reset')
 

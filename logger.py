@@ -1,13 +1,18 @@
 #type: ignore
 """simple logger for displaying key-value pairs in a small window during simulation or animation"""
 
+import time
 import matplotlib.pyplot as plt
+
+MAX_SINGLE_COL = 12
 
 class Logger:
     _data = {}
     _text_objects = {}
     _fig = None
     _ax = None
+    _last_draw_time = 0.0
+    _DRAW_INTERVAL = 0.1  # redraw at most 10fps
 
     @classmethod
     def _init(cls):
@@ -21,6 +26,10 @@ class Logger:
         cls._fig.canvas.manager.set_window_title('Logger')
         cls._ax.format_coord = lambda *_: ''
         plt.show(block=False)
+        try:
+            cls._fig.canvas.manager.window.move(0, 50)
+        except Exception:
+            pass
 
     @classmethod
     def recordData(cls, key, value):
@@ -44,19 +53,38 @@ class Logger:
 
             colors = ['#56d4f5', '#f5a623', '#a78bfa', '#7defa5', '#f87171']
             n = len(cls._data)
-            row_height = min(0.045, 0.97 / (n * 2.2)) if n > 0 else 0.045
-            fig_h = max(5, n * 0.55)
-            cls._fig.set_size_inches(3, fig_h, forward=True)
-            start_y = 0.97
+            two_col = n > MAX_SINGLE_COL
+            keys = list(cls._data.keys())
 
-            for i, key in enumerate(cls._data):
+            if two_col:
+                cls._fig.set_size_inches(6, 5, forward=True)
+                rows_per_col = (n + 1) // 2
+                row_height = 0.045
+                start_y = 0.97
+                col_configs = [
+                    (0.03, 0.47, 0.01, 0.49),
+                    (0.53, 0.97, 0.51, 0.99),
+                ]
+            else:
+                cls._fig.set_size_inches(3, 5, forward=True)
+                rows_per_col = n
+                row_height = 0.045
+                start_y = 0.97
+                col_configs = [(0.04, 0.96, 0.02, 0.98)]
+
+            for i, key in enumerate(keys):
+                col = i // rows_per_col if two_col else 0
+                row = i % rows_per_col
                 color = colors[i % len(colors)]
-                y = start_y - i * row_height * 2.2
-                cls._ax.axhline(y + row_height * 0.6, color='#2a2a4a', lw=0.5, xmin=0.02, xmax=0.98)
-                cls._ax.text(0.04, y, key, color='#8888aa', fontsize=7.5,
+                x_key, x_val, xmin, xmax = col_configs[col]
+                y = start_y - row * row_height * 2.2
+
+                cls._ax.axhline(y + row_height * 0.6, color='#2a2a4a', lw=0.5,
+                                xmin=xmin, xmax=xmax)
+                cls._ax.text(x_key, y, key, color='#8888aa', fontsize=7.5,
                              ha='left', va='top', transform=cls._ax.transAxes,
                              fontfamily='monospace')
-                txt = cls._ax.text(0.96, y, '—', color=color, fontsize=8,
+                txt = cls._ax.text(x_val, y, '—', color=color, fontsize=8,
                                    ha='right', va='top', transform=cls._ax.transAxes,
                                    fontfamily='monospace', fontweight='bold')
                 cls._text_objects[key] = txt
@@ -65,4 +93,7 @@ class Logger:
             val = cls._data[key]
             txt.set_text(f"{val:.4f}" if isinstance(val, float) else str(val))
 
-        cls._fig.canvas.draw_idle()
+        now = time.perf_counter()
+        if now - cls._last_draw_time >= cls._DRAW_INTERVAL:
+            cls._fig.canvas.draw_idle()
+            cls._last_draw_time = now
