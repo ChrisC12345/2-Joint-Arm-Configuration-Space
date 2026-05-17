@@ -1,4 +1,5 @@
-"""Rendering and interaction utilities for arm path planning and PID demonstration."""
+"""Rendering and interaction utilities for arm path planning 
+and PID demonstration."""
 
 import numpy as np
 import matplotlib
@@ -10,6 +11,7 @@ import math
 import arm
 from arm import forward_kinematics, is_collision_batch
 from obstacles import Obstacle, ObstacleType
+from torus import torus_point
 from matplotlib.animation import FuncAnimation
 
 matplotlib.use('QtAgg')
@@ -24,7 +26,8 @@ def generate_cspace(obstacles):
 
 
 def setup_obstacles():
-    """Interactive matplotlib UI for placing obstacles. Returns the obstacle list."""
+    """Interactive matplotlib UI for placing obstacles. 
+    Returns the obstacle list."""
     OBSTACLE = []
     _mode           = ['idle']
     _tmp_center     = [None]
@@ -105,7 +108,8 @@ def setup_obstacles():
                 else:
                     line, = ax_setup.plot(
                         [verts[0][0], verts[1][0]], [verts[0][1], verts[1][1]],
-                        color='#D85A30', linewidth=3, alpha=0.8, solid_capstyle='round'
+                        color='#D85A30', linewidth=3, alpha=0.8, 
+                        solid_capstyle='round'
                     )
                     _obstacle_artists.append(line)
         fig_setup.canvas.draw_idle()
@@ -123,7 +127,8 @@ def setup_obstacles():
 
     def _on_polygon_btn(_event):
         _clear_poly_preview()
-        _set_mode('polygon', 'Click 2+ vertices; Enter to finish (2 = line, 3+ = polygon)')
+        _set_mode('polygon', 
+                  'Click 2+ vertices; Enter to finish (2 = line, 3+ = polygon)')
 
     def _on_undo_btn(_event):
         if _mode[0] == 'polygon' and _tmp_poly_verts:
@@ -136,7 +141,8 @@ def setup_obstacles():
 
     def _on_done_btn(_event):
         if _mode[0] == 'polygon' and len(_tmp_poly_verts) >= 2:
-            OBSTACLE.append(Obstacle(ObstacleType.POLYGON, list(_tmp_poly_verts)))
+            OBSTACLE.append(Obstacle(ObstacleType.POLYGON, 
+                                     list(_tmp_poly_verts)))
             _clear_poly_preview()
         _update_workspace_limits()
         plt.close(fig_setup)
@@ -155,7 +161,8 @@ def setup_obstacles():
             _tmp_center[0] = np.array([x, y])  # type: ignore[index]
             dot, = ax_setup.plot(x, y, 'r+', markersize=14, markeredgewidth=2)
             _tmp_center_dot[0] = dot  # type: ignore[index]
-            _set_mode('circle_edge', 'Click a point on the edge to set the radius')
+            _set_mode('circle_edge', 
+                      'Click a point on the edge to set the radius')
 
         elif _mode[0] == 'circle_edge':
             center = _tmp_center[0]
@@ -175,14 +182,16 @@ def setup_obstacles():
             if len(_tmp_poly_verts) > 1:
                 v1 = _tmp_poly_verts[-2]
                 v2 = _tmp_poly_verts[-1]
-                line, = ax_setup.plot([v1[0], v2[0]], [v1[1], v2[1]], 'r-', linewidth=1.5)
+                line, = ax_setup.plot([v1[0], v2[0]], [v1[1], v2[1]], 'r-', 
+                                      linewidth=1.5)
                 _tmp_poly_lines.append(line)
             fig_setup.canvas.draw_idle()
 
     def _on_setup_key(event):
         if event.key == 'enter':
             if _mode[0] == 'polygon' and len(_tmp_poly_verts) >= 2:
-                OBSTACLE.append(Obstacle(ObstacleType.POLYGON, list(_tmp_poly_verts)))
+                OBSTACLE.append(Obstacle(ObstacleType.POLYGON, 
+                                         list(_tmp_poly_verts)))
                 _clear_poly_preview()
                 _set_mode('idle', '')
                 _redraw_obstacles()
@@ -198,7 +207,8 @@ def setup_obstacles():
 
 def pick_start_goal(grid):
     """Show the c-space grid and let the user click start then goal.
-    Returns (start, goal) as numpy arrays, or None if the window was closed early."""
+    Returns (start, goal) as numpy arrays, 
+        or None if the window was closed early."""
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.set_facecolor('white')
     cmap = mcolors.ListedColormap(['white', '#D85A30'])
@@ -229,12 +239,13 @@ def pick_start_goal(grid):
     return clicks[0], clicks[1]
 
 
-def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
+def animate_path(path, obstacles, grid, title='path', robot=None):
     """
-    path:     (t1, t2) setpoint sequence — animated directly or used as PID reference
-    rrt_path: original RRT path drawn as reference in c-space
-    grid:     c-space collision grid from generate_cspace()
-    robot:    Robot instance to drive with PID; if None, does kinematic-only playback
+    path:  (t1, t2) setpoint sequence — animated directly or used as 
+        PID reference
+    grid:  c-space collision grid from generate_cspace()
+    robot: Robot instance to drive with PID; if None, does 
+        kinematic-only playback
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
     fig.suptitle(title, fontsize=16)
@@ -256,22 +267,30 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
             if len(vertices) >= 3:
                 ax1.add_patch(Polygon(vertices, color='#D85A30', alpha=0.4))
             else:
-                ax1.plot([vertices[0][0], vertices[1][0]], [vertices[0][1], vertices[1][1]],
-                         color='#D85A30', linewidth=3, alpha=0.8, solid_capstyle='round')
+                ax1.plot([vertices[0][0], vertices[1][0]], 
+                         [vertices[0][1], vertices[1][1]],
+                         color='#D85A30', linewidth=3, alpha=0.8, 
+                         solid_capstyle='round')
 
     link1, = ax1.plot([], [], 'm-', linewidth=4, solid_capstyle='round')
     link2, = ax1.plot([], [], 'b-', linewidth=3, solid_capstyle='round')
     ax1.plot([0], [0], 'ko', markersize=6)
     elbow_dot, = ax1.plot([], [], 'ko', markersize=6)
     time_text = ax1.text(0.02, 0.97, 't = 0.00 s', transform=ax1.transAxes,
-                         fontsize=10, va='top', ha='left', fontfamily='monospace')
+                         fontsize=10, va='top', ha='left', 
+                         fontfamily='monospace')
 
-    start_fk = forward_kinematics(rrt_path[0][0], rrt_path[0][1])
-    goal_fk  = forward_kinematics(rrt_path[-1][0], rrt_path[-1][1])
-    ax1.plot([0, start_fk[0][0]], [0, start_fk[0][1]], color='red',   linewidth=2, solid_capstyle='round')
-    ax1.plot([start_fk[0][0], start_fk[1][0]], [start_fk[0][1], start_fk[1][1]], color='red',   linewidth=2, solid_capstyle='round')
-    ax1.plot([0, goal_fk[0][0]],  [0, goal_fk[0][1]],  color='green', linewidth=2, solid_capstyle='round')
-    ax1.plot([goal_fk[0][0], goal_fk[1][0]],  [goal_fk[0][1], goal_fk[1][1]],  color='green', linewidth=2, solid_capstyle='round')
+    start_fk = forward_kinematics(path[0][0], path[0][1])
+    goal_fk  = forward_kinematics(path[-1][0], path[-1][1])
+    ax1.plot([0, start_fk[0][0]], [0, start_fk[0][1]], color='red', 
+             linewidth=2, solid_capstyle='round')
+    ax1.plot([start_fk[0][0], start_fk[1][0]], 
+             [start_fk[0][1], start_fk[1][1]], color='red', 
+             linewidth=2, solid_capstyle='round')
+    ax1.plot([0, goal_fk[0][0]],  [0, goal_fk[0][1]],  color='green', 
+             linewidth=2, solid_capstyle='round')
+    ax1.plot([goal_fk[0][0], goal_fk[1][0]],  [goal_fk[0][1], goal_fk[1][1]], 
+             color='green', linewidth=2, solid_capstyle='round')
     ax1.plot(start_fk[0][0], start_fk[0][1], 'ro', markersize=6, zorder=5)
     ax1.plot(goal_fk[0][0],  goal_fk[0][1],  'go', markersize=6, zorder=5)
 
@@ -284,11 +303,11 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
     ax2.set_title('Configuration Space')
     ax2.set_xlabel('θ₁')
     ax2.set_ylabel('θ₂')
-    ax2.plot([rrt_path[0][0]], [rrt_path[0][1]], 'ro', markersize=8)
-    ax2.plot([rrt_path[-1][0]], [rrt_path[-1][1]], 'go', markersize=8)
+    ax2.plot([path[0][0]], [path[0][1]], 'ro', markersize=8)
+    ax2.plot([path[-1][0]], [path[-1][1]], 'go', markersize=8)
 
-    rrt_t1s = [p[0] for p in rrt_path]
-    rrt_t2s = [p[1] for p in rrt_path]
+    rrt_t1s = [p[0] for p in path]
+    rrt_t2s = [p[1] for p in path]
     segments_t1 = [[]]
     segments_t2 = [[]]
     for i in range(len(rrt_t1s)):
@@ -351,12 +370,26 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
     _step  = [0]   # used only for kinematic mode
     paused = [False]
 
+    def _wrap_trace(t1s, t2s):
+        """Return (t1_plot, t2_plot) with NaN 
+        breaks wherever the path wraps across ±π."""
+        t1_plot, t2_plot = [], []
+        for i in range(len(t1s)):
+            t1_plot.append(t1s[i])
+            t2_plot.append(t2s[i])
+            if i < len(t1s) - 1:
+                if abs(t1s[i+1] - t1s[i]) > math.pi or abs(t2s[i+1] - t2s[i]) > math.pi:
+                    t1_plot.append(float('nan'))
+                    t2_plot.append(float('nan'))
+        return t1_plot, t2_plot
+
     def update(_):
         if robot is not None:
             _state_history.append(robot.capture_state())
             robot.teleopPeriodic()
             _frame[0] += 1
-            t1_dot, t2_dot = robot.t1, robot.t2
+            t1_dot = torus_point(robot.t1)
+            t2_dot = torus_point(robot.t2)
             fk = forward_kinematics(t1_dot, t2_dot)
             ex, ey = fk[0];  tx, ty = fk[1]
 
@@ -369,7 +402,7 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
             _pid_t2_hist.append(t2_dot)
             _tip_x_hist.append(tx)
             _tip_y_hist.append(ty)
-            pid_trace.set_data(_pid_t1_hist[-500:], _pid_t2_hist[-500:])
+            pid_trace.set_data(*_wrap_trace(_pid_t1_hist[-500:], _pid_t2_hist[-500:]))
             tip_trace.set_data(_tip_x_hist[-500:], _tip_y_hist[-500:])
             sp_dot.set_data([robot.setpoint_t1], [robot.setpoint_t2])
         else:
@@ -432,7 +465,7 @@ def animate_path(path, rrt_path, obstacles, grid, title='path', robot=None):
                     del _pid_t1_hist[target:];  del _pid_t2_hist[target:]
                     del _tip_x_hist[target:];   del _tip_y_hist[target:]
                     del _state_history[target:]
-                    pid_trace.set_data(_pid_t1_hist, _pid_t2_hist)
+                    pid_trace.set_data(*_wrap_trace(_pid_t1_hist, _pid_t2_hist))
                     tip_trace.set_data(_tip_x_hist, _tip_y_hist)
             else:
                 _step[0] = max(_step[0] - 2, 0)
