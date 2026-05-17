@@ -122,8 +122,6 @@ if __name__ == "__main__":
                 trapezoid_trajectory = trapezoidal_traj(
                     smoothed, max_vel=(2.0, 2.0), max_accel=(4.0, 4.0)
                 )
-                print(trapezoid_trajectory)
-
                 robot = Robot()
                 robot.robotInit(trapezoid_trajectory)
                 animation.animate_path(

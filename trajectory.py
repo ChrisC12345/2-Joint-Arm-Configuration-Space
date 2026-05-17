@@ -5,13 +5,13 @@ from logger import Logger
 import math
 
 import numpy as np
-from torus import torus_diff, torus_point_diff
+from torus import torus_diff, torus_tuple_wrap, torus_wrap, torus_tuple_diff
 
 
 @dataclass
 class Trajectory:
-    positions: np.ndarray      # shape (N, 2)
-    velocities: np.ndarray     # shape (N, 2)
+    positions: np.ndarray  # shape (N, 2)
+    velocities: np.ndarray  # shape (N, 2)
     accelerations: np.ndarray  # shape (N, 2)
 
     def __len__(self):
@@ -40,7 +40,8 @@ def linear_traj(path, dt=0.02):
 
 def trapezoidal_traj(waypoints, max_vel, max_accel, dt=0.02):
     """follow a path with trapezoidal velocity profile in configuration space
-    accelerates at max_accel until max_vel, cruises at max_vel, then decelerates at max_accel to stop at the end of the path
+    accelerates at max_accel until max_vel, cruises at max_vel, 
+    then decelerates at max_accel to stop at the end of the path
 
     Parameters
     ---
@@ -86,7 +87,8 @@ def trap_traj_endpts(p1, p2, max_velocities, max_accelerations, dt=0.02):
 
     slope = (p2[1] - p1[1]) / (p2[0] - p1[0]) if p2[1] != p2[0] else math.inf
 
-    # choose the more restrictive constraint between the two joints to ensure we don't exceed limits on either joint
+    # choose the more restrictive constraint between the two joints to ensure we don't 
+    # exceed limits on either joint
     if max_accelerations[1] / max_accelerations[0] > slope:
         ratio = 1 / math.sqrt(1 + slope**2)  # ratio between x and total components
         max_accel = max_accelerations[0] * ratio
@@ -98,7 +100,7 @@ def trap_traj_endpts(p1, p2, max_velocities, max_accelerations, dt=0.02):
         max_accel = max_accelerations[1] * ratio
         max_vel = max_velocities[1] * ratio
 
-    diff = torus_point_diff(p2, p1)
+    diff = torus_tuple_diff(p2, p1)
 
     # now consider it as 1D
     distance = np.linalg.norm(diff)
@@ -115,13 +117,15 @@ def trap_traj_endpts(p1, p2, max_velocities, max_accelerations, dt=0.02):
             velocity = max_accel * i * dt
             velocities.append(decompose_scalar(p1, p2, velocity))
             position = 0.5 * max_accel * (i * dt) ** 2
-            positions.append(decompose_scalar(p1, p2, position))
+            raw = decompose_scalar(p1, p2, position)
+            positions.append((torus_wrap(raw[0]), torus_wrap(raw[1])))
         for i in range(half_num_steps):
             accelerations.append(decompose_scalar(p1, p2, -max_accel))
             velocity = max_accel * (half_num_steps - i) * dt
             velocities.append(decompose_scalar(p1, p2, velocity))
             position = distance - 0.5 * max_accel * ((half_num_steps - i) * dt) ** 2
-            positions.append(decompose_scalar(p1, p2, position))
+            raw = decompose_scalar(p1, p2, position)
+            positions.append((torus_wrap(raw[0]), torus_wrap(raw[1])))
     else:
         print("trapezoid profile")
         # trapezoid profile
@@ -134,24 +138,21 @@ def trap_traj_endpts(p1, p2, max_velocities, max_accelerations, dt=0.02):
             velocity = max_accel * i * dt
             velocities.append(decompose_scalar(p1, p2, velocity))
             position = 0.5 * max_accel * (i * dt) ** 2
-            positions.append(decompose_scalar(p1, p2, position))
+            positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, position)))
         # cruise steps
         for i in range(cruise_steps):
             accelerations.append(decompose_scalar(p1, p2, 0))
             velocity = max_vel
             velocities.append(decompose_scalar(p1, p2, velocity))
             position = accel_distance + max_vel * i * dt
-            positions.append(decompose_scalar(p1, p2, position))
+            positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, position)))
         # deceleration steps
         for i in range(accel_steps):
             accelerations.append(decompose_scalar(p1, p2, -max_accel))
             velocity = max_vel - max_accel * i * dt
             velocities.append(decompose_scalar(p1, p2, velocity))
             position = distance - 0.5 * max_accel * ((accel_steps - i) * dt) ** 2
-            positions.append(decompose_scalar(p1, p2, position))
-
-        Logger.recordData("cruise_distance", cruise_distance)
-        Logger.recordData("accel_distance", accel_distance)
+            positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, position)))
 
     return (positions, velocities, accelerations)
 
@@ -165,7 +166,7 @@ def decompose_scalar(p1, p2, scalar):
     p2 : ending point in configuration space np array of joint angles
     scalar: scalar value to decompose
     returns a tuple of (x_component, y_component)"""
-    diff = torus_point_diff(p2, p1)
+    diff = torus_tuple_diff(p2, p1)
     distance = np.linalg.norm(diff)
     x_comp = p1[0] + scalar * diff[0] / distance
     y_comp = p1[1] + scalar * diff[1] / distance

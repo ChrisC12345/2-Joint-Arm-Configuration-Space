@@ -3,7 +3,7 @@
 import numpy as np
 import math
 from arm import is_collision_batch
-from torus import torus_diff, torus_point, torus_dist_sq
+from torus import torus_diff, torus_wrap, torus_dist_sq
 
 
 def _line_free(a, b, obstacles):
@@ -44,7 +44,7 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
         norm = math.hypot(direction[0], direction[1])
         if norm < 1e-10:
             continue
-        new_node = torus_point(nearest + direction * (step_size / norm))
+        new_node = torus_wrap(nearest + direction * (step_size / norm))
 
         if _line_free(nearest, new_node, obstacles):
             nodes[n_nodes] = new_node
@@ -86,7 +86,7 @@ def interpolate_path(path, resolution=0.05):
         for t in range(steps):
             config = a + (t / steps) * diff
             # wrap back into [-pi, pi]
-            config = torus_point(config)
+            config = torus_wrap(config)
             dense_path.append(tuple(config))
     dense_path.append(path[-1])
     return dense_path

@@ -147,7 +147,7 @@ class DoubleJointArmSim:
 
 
 def animateFreeFall(arm, t1_init=math.pi / 2, t2_init=0.0, w1_init=0.0, w2_init=0.0):
-    """Simulate and animate the double arm falling freely under gravity (no motor power).
+    """Simulate and animate the double arm falling freely under gravity
     Runs indefinitely, computing physics on the fly each frame.
 
     arm:      doubleJointArmSim instance (its state will be overwritten)

@@ -5,9 +5,14 @@ import math
 import numpy as np
 
 
-def torus_point(point):
-    """Wraps a single point to the range [-pi, pi]."""
-    return ((point + math.pi) % (2 * math.pi)) - math.pi
+def torus_wrap(number):
+    """Wraps a single number to the range [-pi, pi]."""
+    return ((number + math.pi) % (2 * math.pi)) - math.pi
+
+
+def torus_tuple_wrap(point):
+    """Wraps each element of a tuple to the range [-pi, pi]."""
+    return tuple(torus_wrap(x) for x in point)
 
 
 def torus_diff(a, b):
@@ -16,7 +21,7 @@ def torus_diff(a, b):
     return diff
 
 
-def torus_point_diff(a, b):
+def torus_tuple_diff(a, b):
     """Returns the torus difference between two points a and b, applied elementwise."""
     diff = []
     for i in range(len(a)):
