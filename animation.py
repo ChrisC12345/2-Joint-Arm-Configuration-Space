@@ -255,6 +255,27 @@ def pick_start_goal(grid):
     return clicks[0], clicks[1]
 
 
+def plot_path_on_cspace(ax, path, color="lime", label="smoothed RRT"):
+    """Overlay a (t1, t2) path onto an existing c-space axes."""
+    t1s, t2s = [], []
+    for i in range(len(path) - 1):
+        a = np.array(path[i])
+        b = np.array(path[i + 1])
+        diff = (b - a + math.pi) % (2 * math.pi) - math.pi
+        n = max(2, int(np.linalg.norm(diff) / 0.05))
+        ts = np.linspace(0, 1, n + 1)
+        pts = ((a + ts[:, None] * diff) + math.pi) % (2 * math.pi) - math.pi
+        for j in range(len(pts)):
+            if j > 0 and np.max(np.abs(pts[j] - pts[j - 1])) > 0.3:
+                t1s.append(float("nan"))
+                t2s.append(float("nan"))
+            t1s.append(pts[j, 0])
+            t2s.append(pts[j, 1])
+    ax.plot(t1s, t2s, "-", color=color, linewidth=2, alpha=0.85, label=label)
+    ax.plot([p[0] for p in path], [p[1] for p in path], "o", color=color, markersize=4, alpha=0.85)
+    ax.legend(loc="upper right", fontsize=8)
+
+
 def animate_path(path, obstacles, grid, title="path", robot=None):
     """
     path:  (t1, t2) setpoint sequence — animated directly or used as
@@ -557,10 +578,10 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
             else:
                 ani.pause()
             paused[0] = not paused[0]
-        elif event.key == "right" and paused[0]:
+        elif event.key == "." and paused[0]:
             update(None)
             _blit_step()
-        elif event.key == "left" and paused[0]:
+        elif event.key == "," and paused[0]:
             if robot is not None:
                 target = max(len(_state_history) - 2, 0)
                 if target < len(_state_history):
@@ -607,3 +628,4 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
 
     fig._anim = ani  # type: ignore — prevent garbage collection
     fig._btn = btn_reset  # type: ignore
+    return ax1, ax2

@@ -95,3 +95,8 @@ python robot.py
 1. Place obstacles in the workspace window (circles or polygons), then click **Done**
 2. Click a start point, then a goal point in the C-space window
 3. The arm animates following the planned path under PID + feedforward control
+
+
+Note: a significant amount of ai was used in the making of this project. Although all 
+the math was derived by myself. I also wrote the rrt, tajectory, control, torus and various other files myself (with a bit of ai in-line suggestions, 
+but they are my ideas).

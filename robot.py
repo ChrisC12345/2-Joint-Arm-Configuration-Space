@@ -4,12 +4,13 @@ into one FRC-style robot loop."""
 
 import matplotlib.pyplot as plt
 import arm
+import animation
 from arm import is_collision
 from pathing import rrt, smooth_path, interpolate_path, is_reachable
 from simulation import SingleJointArmSim, DoubleJointArmSim
 from control import PIDController, TrajectoryFollower
 from logger import Logger
-import animation
+from animation import animate_path, plot_path_on_cspace
 from trajectory import *
 
 
@@ -35,7 +36,7 @@ class Robot:
         self.sim.upper_arm.setMotorPowered(True)
         self.sim.forearm.setMotorPowered(True)
         self.pid1 = PIDController(Kp=12, Ki=0.0, Kd=1.5)
-        self.pid2 = PIDController(Kp=3, Ki=0.0, Kd=0.3)
+        self.pid2 = PIDController(Kp=6, Ki=0.0, Kd=0.3)
         self.follower = TrajectoryFollower(self.sim, self.pid1, self.pid2)
         self.trajectory = trajectory
         self.step = 0
@@ -120,15 +121,20 @@ if __name__ == "__main__":
                 print("path length after smoothing:", len(smoothed))
                 interp_smoothed = interpolate_path(smoothed)
                 trapezoid_trajectory = trapezoidal_traj(
-                    smoothed, max_vel=(2.0, 2.0), max_accel=(4.0, 4.0)
+                    smoothed,
+                    v_max=(2.0, 2.0),
+                    a_max=(4.0, 4.0),
+                    radius=0.3,
+                    v_turn=1.0,
                 )
                 robot = Robot()
                 robot.robotInit(trapezoid_trajectory)
-                animation.animate_path(
+                _, ax2 = animate_path(
                     trapezoid_trajectory.positions,
                     obstacles,
                     grid,
                     title="smoothed — PID",
                     robot=robot,
                 )
+                plot_path_on_cspace(ax2, smoothed)
                 plt.show()

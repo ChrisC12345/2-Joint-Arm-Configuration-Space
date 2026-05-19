@@ -1,4 +1,5 @@
-"""kinematics and collision checking for a 2-link arm in 2D with circular and polygonal obstacles"""
+"""kinematics and collision checking for a 2-link arm in 2D with circular
+and polygonal obstacles"""
 
 import math
 import numpy as np
@@ -25,7 +26,8 @@ def forward_kinematics(t1, t2):
 
 
 def is_collision_batch(t1, t2, obstacles):
-    """Vectorized is_collision for arrays of configs. Returns bool array of same shape as t1/t2."""
+    """Vectorized is_collision for arrays of configs.
+    Returns bool array of same shape as t1/t2."""
     t1, t2 = np.asarray(t1, float), np.asarray(t2, float)
     ex = L1 * np.cos(t1)
     ey = L1 * np.sin(t1)
