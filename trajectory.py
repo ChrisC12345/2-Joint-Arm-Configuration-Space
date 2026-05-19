@@ -66,18 +66,15 @@ def trapezoidal_traj(waypoints, v_max, a_max, radius, v_turn, dt=0.02):
     if len(waypoints) == 2:
         return trap_traj_endpts(waypoints[0], waypoints[1], v_max, a_max, dt=dt)
     elif len(waypoints) > 2:
-        start = waypoints[0]
+        start = waypoints[0] # where to start from every loop iteration
+        start_v = 0
         for i in range(1, len(waypoints) - 1):
             p1, p2, p3 = waypoints[i - 1], waypoints[i], waypoints[i + 1]
-            u1 = np.array(torus_tuple_diff(p1, p2))
-            u3 = np.array(torus_tuple_diff(p3, p2))
-            half_angle = math.acos(np.dot(u1, u3) / (np.linalg.norm(u1) * np.linalg.norm(u3))) / 2
-            max_tangent = min(np.linalg.norm(u1), np.linalg.norm(u3)) / 2
-            safe_r = min(radius, max_tangent * math.tan(half_angle))
-            c1, c2 = calc_circular_params(p1, p2, p3, safe_r)[:2]
-            traj += trap_traj_endpts(start, c1, v_max, a_max, v_turn, v_turn, dt=dt)
-            traj += arc_traj(c1, p2, c2, v_turn, v_turn, safe_r, dt=dt)
+            c1, c2 = calc_circular_params(p1, p2, p3, radius)[:2]
+            traj += trap_traj_endpts(start, c1, v_max, a_max, start_v, v_turn, dt=dt)
+            traj += arc_traj(c1, p2, c2, v_turn, v_turn, radius, dt=dt)
             start = c2
+            start_v = v_turn
         traj += trap_traj_endpts(start, waypoints[-1], v_max, a_max, v_turn, 0, dt=dt)
         return traj
 

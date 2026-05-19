@@ -272,7 +272,14 @@ def plot_path_on_cspace(ax, path, color="lime", label="smoothed RRT"):
             t1s.append(pts[j, 0])
             t2s.append(pts[j, 1])
     ax.plot(t1s, t2s, "-", color=color, linewidth=2, alpha=0.85, label=label)
-    ax.plot([p[0] for p in path], [p[1] for p in path], "o", color=color, markersize=4, alpha=0.85)
+    ax.plot(
+        [p[0] for p in path],
+        [p[1] for p in path],
+        "o",
+        color=color,
+        markersize=4,
+        alpha=0.85,
+    )
     ax.legend(loc="upper right", fontsize=8)
 
 
