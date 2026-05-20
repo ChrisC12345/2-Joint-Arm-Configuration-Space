@@ -387,26 +387,30 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
     ax2.plot([path[0][0]], [path[0][1]], "ro", markersize=8)
     ax2.plot([path[-1][0]], [path[-1][1]], "go", markersize=8)
 
-    rrt_t1s = [p[0] for p in path]
-    rrt_t2s = [p[1] for p in path]
-    segments_t1 = [[]]
-    segments_t2 = [[]]
-    for i in range(len(rrt_t1s)):
-        segments_t1[-1].append(rrt_t1s[i])
-        segments_t2[-1].append(rrt_t2s[i])
-        if i < len(rrt_t1s) - 1:
-            if (
-                abs(rrt_t1s[i + 1] - rrt_t1s[i]) > math.pi
-                or abs(rrt_t2s[i + 1] - rrt_t2s[i]) > math.pi
-            ):
-                segments_t1.append([])
-                segments_t2.append([])
-    for seg_t1, seg_t2 in zip(segments_t1, segments_t2):
-        ax2.plot(seg_t1, seg_t2, "m-", linewidth=1.5, alpha=0.5)
+    traj_t1, traj_t2 = [], []
+    for i, (t1, t2) in enumerate(path):
+        traj_t1.append(t1)
+        traj_t2.append(t2)
+        if i < len(path) - 1:
+            n1, n2 = path[i + 1][0], path[i + 1][1]
+            if abs(n1 - t1) > math.pi or abs(n2 - t2) > math.pi:
+                traj_t1.append(float("nan"))
+                traj_t2.append(float("nan"))
 
     (dot,) = ax2.plot([], [], "bo", markersize=8, zorder=5, label="actual")
     (sp_dot,) = ax2.plot(
         [], [], "o", markersize=6, color="cyan", zorder=4, label="setpoint"
+    )
+
+    ax2.plot(
+        traj_t1,
+        traj_t2,
+        "-",
+        color="magenta",
+        linewidth=2,
+        alpha=0.85,
+        zorder=2,
+        label="setpoint trajectory",
     )
 
     t1_arr = np.array([p[0] for p in path])

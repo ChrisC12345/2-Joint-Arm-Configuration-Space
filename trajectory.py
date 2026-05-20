@@ -101,7 +101,21 @@ def trap_traj_endpts(p1, p2, v_max, a_max, v1=0, v2=0, dt=0.02):
     max_accel = 0
     max_vel = 0
 
-    slope = (p2[1] - p1[1]) / (p2[0] - p1[0]) if p2[0] != p2[0] else math.inf
+    diff = torus_tuple_diff(p2, p1)
+
+    # now consider it as 1D
+    distance = np.linalg.norm(diff)
+
+    if distance < 1e-3:
+        p = torus_tuple_wrap(tuple(np.asarray(p1, dtype=float)))
+        return Trajectory(
+            positions=np.array([p]),
+            velocities=np.array([(0.0, 0.0)]),
+            accelerations=np.array([(0.0, 0.0)]),
+            states=np.array(["hold"]),
+        )
+
+    slope = (p2[1] - p1[1]) / (p2[0] - p1[0]) if p2[0] != p1[0] else math.inf
 
     # choose the more restrictive constraint between the two joints to ensure we don't
     # exceed limits on either joint
@@ -116,10 +130,6 @@ def trap_traj_endpts(p1, p2, v_max, a_max, v1=0, v2=0, dt=0.02):
         max_accel = a_max[1] * ratio
         max_vel = v_max[1] * ratio
 
-    diff = torus_tuple_diff(p2, p1)
-
-    # now consider it as 1D
-    distance = np.linalg.norm(diff)
     # derived from vf^2-v0^2 = 2ax with v1-peak_v and v_peak-v2
     peak_vel = min(max_vel, math.sqrt(2 * max_accel * distance + v1**2 + v2**2))
     accel_steps = int((peak_vel - v1) / max_accel / dt)
