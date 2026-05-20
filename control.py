@@ -50,9 +50,17 @@ class TrajectoryFollower:
             where each is a list of (t1, t2) pairs for each time step
         step: current time step index
         dt: time step duration in seconds"""
-        p_setpoint = trajectory.positions[step]
-        v_setpoint = trajectory.velocities[step]
-        a_setpoint = trajectory.accelerations[step]
+        p_setpoint = (
+            trajectory.positions[step]
+            if step < len(trajectory)
+            else trajectory.positions[-1]
+        )
+        v_setpoint = (
+            trajectory.velocities[step] if step < len(trajectory) else (0.0, 0.0)
+        )
+        a_setpoint = (
+            trajectory.accelerations[step] if step < len(trajectory) else (0.0, 0.0)
+        )
 
         upper_pid = self.controller1.compute(
             self.arm_sim.upper_arm.position, p_setpoint[0], dt
