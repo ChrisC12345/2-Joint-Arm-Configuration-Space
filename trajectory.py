@@ -13,6 +13,7 @@ class Trajectory:
     positions: np.ndarray  # shape (N, 2)
     velocities: np.ndarray  # shape (N, 2)
     accelerations: np.ndarray  # shape (N, 2)
+    states: np.ndarray
 
     def __len__(self):
         return len(self.positions)
@@ -24,6 +25,7 @@ class Trajectory:
             positions=np.concatenate((self.positions, other.positions)),
             velocities=np.concatenate((self.velocities, other.velocities)),
             accelerations=np.concatenate((self.accelerations, other.accelerations)),
+            states=np.concatenate((self.states, other.states)),
         )
 
 
@@ -44,10 +46,11 @@ def linear_traj(path, dt=0.02):
         positions=positions,
         velocities=velocities_arr,
         accelerations=np.zeros_like(velocities_arr),
+        states=np.array(["linear"] * len(positions)),
     )
 
 
-def trapezoidal_traj(waypoints, v_max, a_max, radius, v_turn, dt=0.02):
+def trapezoidal_arc_traj(waypoints, v_max, a_max, radius, v_turn, dt=0.02):
     """follow a path with trapezoidal velocity profile in configuration space
     accelerates at max_accel until max_vel, cruises at max_vel,
     then decelerates at max_accel to stop at the end of the path
@@ -62,11 +65,12 @@ def trapezoidal_traj(waypoints, v_max, a_max, radius, v_turn, dt=0.02):
         positions=np.empty((0, 2)),
         velocities=np.empty((0, 2)),
         accelerations=np.empty((0, 2)),
+        states=np.empty(0, dtype=object),
     )
     if len(waypoints) == 2:
         return trap_traj_endpts(waypoints[0], waypoints[1], v_max, a_max, dt=dt)
     elif len(waypoints) > 2:
-        start = waypoints[0] # where to start from every loop iteration
+        start = waypoints[0]  # where to start from every loop iteration
         start_v = 0
         for i in range(1, len(waypoints) - 1):
             p1, p2, p3 = waypoints[i - 1], waypoints[i], waypoints[i + 1]
@@ -92,6 +96,7 @@ def trap_traj_endpts(p1, p2, v_max, a_max, v1=0, v2=0, dt=0.02):
     accelerations = []
     velocities = []
     positions = []
+    states = []
 
     max_accel = 0
     max_vel = 0
@@ -137,6 +142,7 @@ def trap_traj_endpts(p1, p2, v_max, a_max, v1=0, v2=0, dt=0.02):
         positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, x)))
         v = v1 + max_accel * i * dt
         x = v1 * i * dt + 0.5 * max_accel * (i * dt) ** 2
+        states.append("accel")
 
     v = peak_vel
     accel_dist = x
@@ -146,6 +152,7 @@ def trap_traj_endpts(p1, p2, v_max, a_max, v1=0, v2=0, dt=0.02):
         velocities.append(decompose_scalar(p1, p2, v))
         positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, x)))
         x = accel_dist + v * i * dt
+        states.append("cruise")
 
     dist_after_cruise = x
 
@@ -155,11 +162,13 @@ def trap_traj_endpts(p1, p2, v_max, a_max, v1=0, v2=0, dt=0.02):
         positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, x)))
         v = peak_vel - max_accel * i * dt
         x = dist_after_cruise + peak_vel * i * dt - 0.5 * max_accel * (i * dt) ** 2
+        states.append("decel")
 
     return Trajectory(
         positions=np.array(positions),
         velocities=np.array(velocities),
         accelerations=np.array(accelerations),
+        states=np.array(states),
     )
 
 
@@ -174,12 +183,17 @@ def calc_circular_params(p1, p2, p3, r):
     u1 = np.array(torus_tuple_diff(p1, p2))
     u3 = np.array(torus_tuple_diff(p3, p2))
     angle = math.acos(np.dot(u1, u3) / (np.linalg.norm(u1) * np.linalg.norm(u3))) / 2
-    start = p2 + r / math.tan(angle) * (u1 / np.linalg.norm(u1))
-    end = p2 + r / math.tan(angle) * (u3 / np.linalg.norm(u3))
-    bisector = u1 / np.linalg.norm(u1) + u3 / np.linalg.norm(u3)
-    center = p2 + r / math.sin(angle) * bisector / np.linalg.norm(bisector)
 
-    return start, end, center, math.pi - 2 * angle
+    safe_r = min(
+        r, np.linalg.norm(u1) * math.tan(angle), np.linalg.norm(u3) * math.tan(angle)
+    )
+
+    start = p2 + safe_r / math.tan(angle) * (u1 / np.linalg.norm(u1))
+    end = p2 + safe_r / math.tan(angle) * (u3 / np.linalg.norm(u3))
+    bisector = u1 / np.linalg.norm(u1) + u3 / np.linalg.norm(u3)
+    center = p2 + safe_r / math.sin(angle) * bisector / np.linalg.norm(bisector)
+
+    return start, end, center, safe_r, math.pi - 2 * angle
 
 
 def arc_traj(p1, p2, p3, v1, v3, r, dt=0.02):
@@ -195,14 +209,16 @@ def arc_traj(p1, p2, p3, v1, v3, r, dt=0.02):
     v1: starting linear velocity along the arc
     v3: ending linear velocity along the arc
     """
-    start, end, center, angle = calc_circular_params(p1, p2, p3, r)
+    start, end, center, r, angle = calc_circular_params(p1, p2, p3, r)
     arc_length = r * angle
     accel = (v3**2 - v1**2) / (2 * arc_length)
     num_steps = int(arc_length / ((v1 + v3) / 2) / dt)
 
     # determine CW (-1) or CCW (+1) from cross product of incoming direction × centripetal
     incoming = np.array(p2) - np.array(p1)
-    turn_sign = np.sign(incoming[0] * (center[1] - start[1]) - incoming[1] * (center[0] - start[0]))
+    turn_sign = np.sign(
+        incoming[0] * (center[1] - start[1]) - incoming[1] * (center[0] - start[0])
+    )
 
     start_angle = math.atan2(start[1] - center[1], start[0] - center[0])
     arc_swept = 0.0
@@ -211,6 +227,7 @@ def arc_traj(p1, p2, p3, v1, v3, r, dt=0.02):
     positions = []
     velocities = []
     accelerations = []
+    states = []
 
     for i in range(num_steps):
         t = i * dt
@@ -229,11 +246,13 @@ def arc_traj(p1, p2, p3, v1, v3, r, dt=0.02):
         positions.append(torus_tuple_wrap(tuple(x)))
         velocities.append(tuple(tangent_vec * v))
         accelerations.append(tuple(a_total))
+        states.append("arc")
 
     return Trajectory(
         positions=np.array(positions),
         velocities=np.array(velocities),
         accelerations=np.array(accelerations),
+        states=np.array(states),
     )
 
 

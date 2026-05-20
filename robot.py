@@ -35,8 +35,8 @@ class Robot:
         self.sim = DoubleJointArmSim(upper_arm, forearm)
         self.sim.upper_arm.setMotorPowered(True)
         self.sim.forearm.setMotorPowered(True)
-        self.pid1 = PIDController(Kp=12, Ki=0.0, Kd=1.5)
-        self.pid2 = PIDController(Kp=6, Ki=0.0, Kd=0.3)
+        self.pid1 = PIDController(Kp=12, Ki=16, Kd=1.5)
+        self.pid2 = PIDController(Kp=6, Ki=8, Kd=0.3)
         self.follower = TrajectoryFollower(self.sim, self.pid1, self.pid2)
         self.trajectory = trajectory
         self.step = 0
@@ -120,11 +120,11 @@ if __name__ == "__main__":
                 smoothed = smooth_path(path.copy(), obstacles)
                 print("path length after smoothing:", len(smoothed))
                 interp_smoothed = interpolate_path(smoothed)
-                trapezoid_trajectory = trapezoidal_traj(
+                trapezoid_trajectory = trapezoidal_arc_traj(
                     smoothed,
                     v_max=(2.0, 2.0),
                     a_max=(4.0, 4.0),
-                    radius=0.3,
+                    radius=10,
                     v_turn=1.0,
                 )
                 robot = Robot()

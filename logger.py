@@ -4,7 +4,7 @@
 import time
 import matplotlib.pyplot as plt
 
-MAX_SINGLE_COL = 12
+MAX_SINGLE_COL = 10
 
 
 class Logger:

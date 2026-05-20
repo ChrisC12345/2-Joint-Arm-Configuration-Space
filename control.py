@@ -83,10 +83,12 @@ class TrajectoryFollower:
         Logger.recordData("forearm_gravity_ff", forearm_gravity_ff)
         Logger.recordData("forearm_voltage", forearm_voltage)
 
+        Logger.recordData("traj state", trajectory.states[step])
+
         self.arm_sim.upper_arm.setVoltage(upper_voltage)
         self.arm_sim.forearm.setVoltage(forearm_voltage)
 
-    def follow_pos_trajectory(self, trajectory, step, dt=0.02):
+    def follow_position_trajectory(self, trajectory, step, dt=0.02):
         """Given a list of (t1_setpoint, t2_setpoint) pairs and a time step dt,
         compute and apply motor voltages to follow the trajectory."""
         setpoint = trajectory[step]
