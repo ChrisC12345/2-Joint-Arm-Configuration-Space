@@ -147,31 +147,31 @@ def trap_traj_endpts(p1, p2, v_max, a_max, v1=0, v2=0, dt=0.02):
     x, v = 0, v1
 
     for i in range(accel_steps):
+        v = v1 + max_accel * i * dt
+        x = v1 * i * dt + 0.5 * max_accel * (i * dt) ** 2
         accelerations.append(decompose_scalar(p1, p2, max_accel))
         velocities.append(decompose_scalar(p1, p2, v))
         positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, x)))
-        v = v1 + max_accel * i * dt
-        x = v1 * i * dt + 0.5 * max_accel * (i * dt) ** 2
         states.append("accel")
 
     v = peak_vel
-    accel_dist = x
+    accel_dist = x + v * dt
 
     for i in range(cruise_steps):
+        x = accel_dist + v * i * dt
         accelerations.append(decompose_scalar(p1, p2, 0))
         velocities.append(decompose_scalar(p1, p2, v))
         positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, x)))
-        x = accel_dist + v * i * dt
         states.append("cruise")
 
-    dist_after_cruise = x
+    dist_after_cruise = x + v * dt
 
     for i in range(decel_steps):
+        v = peak_vel - max_accel * i * dt
+        x = dist_after_cruise + peak_vel * i * dt - 0.5 * max_accel * (i * dt) ** 2
         accelerations.append(decompose_scalar(p1, p2, -max_accel))
         velocities.append(decompose_scalar(p1, p2, v))
         positions.append(torus_tuple_wrap(decompose_scalar(p1, p2, x)))
-        v = peak_vel - max_accel * i * dt
-        x = dist_after_cruise + peak_vel * i * dt - 0.5 * max_accel * (i * dt) ** 2
         states.append("decel")
 
     return Trajectory(

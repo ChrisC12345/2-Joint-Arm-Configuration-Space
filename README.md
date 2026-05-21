@@ -76,6 +76,8 @@ Interactive matplotlib UI (requires `QtAgg` backend):
 ### logger.py
 A lightweight real-time dashboard that opens a small matplotlib window and displays key-value pairs (voltages, feedforward terms, etc.) as the simulation runs. Updates at up to 10 fps and auto-expands to two columns for larger datasets.
 
+It also supports live scrolling graphs via `Logger.graphData(key, value, group=None)`, drawn in a separate window. Each value is appended to a rolling buffer and plotted over time; series sharing a `group` are overlaid on the same axes (e.g. actual vs. setpoint), while ungrouped series each get their own subplot. Non-numeric and non-finite values are ignored. `Logger.update()` refreshes both the text panel and the graphs.
+
 ## Math
 
 - **Forward kinematics**: standard 2-link planar arm via trigonometry and vector addition

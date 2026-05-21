@@ -255,7 +255,7 @@ def pick_start_goal(grid):
     return clicks[0], clicks[1]
 
 
-def plot_path_on_cspace(ax, path, color="lime", label="smoothed RRT"):
+def plot_path_on_cspace(ax, path, label, color, fade=False):
     """Overlay a (t1, t2) path onto an existing c-space axes."""
     t1s, t2s = [], []
     for i in range(len(path) - 1):
@@ -271,16 +271,23 @@ def plot_path_on_cspace(ax, path, color="lime", label="smoothed RRT"):
                 t2s.append(float("nan"))
             t1s.append(pts[j, 0])
             t2s.append(pts[j, 1])
-    ax.plot(t1s, t2s, "-", color=color, linewidth=2, alpha=0.85, label=label)
+    linewidth, alpha = (2, 0.85) if not fade else (1, 0.3)
+    ax.plot(t1s, t2s, "-", color=color, linewidth=linewidth, alpha=alpha, label=label)
     ax.plot(
         [p[0] for p in path],
         [p[1] for p in path],
         "o",
         color=color,
-        markersize=4,
-        alpha=0.85,
+        markersize=linewidth * 1.5,
+        alpha=alpha,
     )
-    ax.legend(loc="upper right", fontsize=8)
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1),
+        fontsize=7,
+        framealpha=0.85,
+        borderaxespad=0,
+    )
 
 
 def animate_path(path, obstacles, grid, title="path", robot=None):
@@ -291,7 +298,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
     robot: Robot instance to drive with PID; if None, does
         kinematic-only playback
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.35, 5))
     fig.suptitle(title, fontsize=16)
 
     # left plot — real world
@@ -343,6 +350,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
         color="red",
         linewidth=2,
         solid_capstyle="round",
+        label="start",
     )
     ax1.plot(
         [start_fk[0][0], start_fk[1][0]],
@@ -357,6 +365,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
         color="green",
         linewidth=2,
         solid_capstyle="round",
+        label="goal",
     )
     ax1.plot(
         [goal_fk[0][0], goal_fk[1][0]],
@@ -454,9 +463,8 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
             solid_capstyle="round",
         )
         (tip_trace,) = ax1.plot([], [], "-", color="orange", linewidth=1.2, alpha=0.7)
-        ax2.legend(loc="upper right", fontsize=8)
-        ax1.plot([], [], "--", color="gray", alpha=0.6, label="setpoint")
-        ax1.plot([], [], "-", color="gray", alpha=0.7, label="actual tip")
+        ax1.plot([], [], "--", color="blue", alpha=0.6, label="setpoint")
+        ax1.plot([], [], "-", color="blue", alpha=0.7, label="actual tip")
         ax1.legend(loc="upper right", fontsize=8)
 
         _pid_t1_hist = []
@@ -617,10 +625,9 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
         fig, update, frames=None, interval=10, blit=True, cache_frame_data=False
     )
 
-    plt.tight_layout()
-    fig.subplots_adjust(bottom=0.1)
+    fig.subplots_adjust(left=0.05, right=0.85, top=0.93, bottom=0.07, wspace=0.35)
     try:
-        fig.canvas.manager.window.move(310, 50)  # type: ignore[attr-defined]
+        fig.canvas.manager.window.move(500, 50)  # type: ignore[attr-defined]
     except Exception:
         pass
     ax_btn = fig.add_axes((0.45, 0.02, 0.12, 0.05))

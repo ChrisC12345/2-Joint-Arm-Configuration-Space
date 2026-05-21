@@ -124,7 +124,7 @@ if __name__ == "__main__":
                     smoothed,
                     v_max=(2.0, 2.0),
                     a_max=(4.0, 4.0),
-                    radius=10,
+                    radius=0.2,
                     v_turn=1.0,
                 )
                 robot = Robot()
@@ -133,8 +133,11 @@ if __name__ == "__main__":
                     trapezoid_trajectory.positions,
                     obstacles,
                     grid,
-                    title="smoothed — PID",
+                    title="2 Joint Arm PID and C-space Path",
                     robot=robot,
                 )
-                plot_path_on_cspace(ax2, smoothed)
+                plot_path_on_cspace(ax2, smoothed, label="smoothed", color="lime")
+                plot_path_on_cspace(
+                    ax2, path, label="raw RRT", color="purple", fade=True
+                )
                 plt.show()

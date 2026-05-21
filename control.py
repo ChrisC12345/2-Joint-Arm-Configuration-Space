@@ -14,13 +14,17 @@ class PIDController:
         self.Kd = Kd
         self.integral = 0
         self.prev_error = 0
+        self.error = 0
+        self.derivative = 0
 
     def compute(self, position, setpoint, dt):
-        error = torus_diff(setpoint, position)
-        self.integral += error * dt
-        derivative = (error - self.prev_error) / dt
-        output = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
-        self.prev_error = error
+        self.error = torus_diff(setpoint, position)
+        self.integral += self.error * dt
+        self.derivative = (self.error - self.prev_error) / dt
+        output = (
+            self.Kp * self.error + self.Ki * self.integral + self.Kd * self.derivative
+        )
+        self.prev_error = self.error
         return output
 
     def reset(self):
@@ -92,6 +96,14 @@ class TrajectoryFollower:
         Logger.recordData("forearm_voltage", forearm_voltage)
 
         Logger.recordData("traj state", trajectory.states[step])
+
+        # live scrolling graphs (actual vs setpoint per joint, and voltages)
+        Logger.graphData("actual", self.arm_sim.upper_arm.position, group="upper θ")
+        Logger.graphData("setpoint", p_setpoint[0], group="upper θ")
+        Logger.graphData("actual", self.arm_sim.forearm.position, group="forearm θ")
+        Logger.graphData("setpoint", p_setpoint[1], group="forearm θ")
+        Logger.graphData("upper", upper_voltage, group="voltage")
+        Logger.graphData("forearm", forearm_voltage, group="voltage")
 
         self.arm_sim.upper_arm.setVoltage(upper_voltage)
         self.arm_sim.forearm.setVoltage(forearm_voltage)
