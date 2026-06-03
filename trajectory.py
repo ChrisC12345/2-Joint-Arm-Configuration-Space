@@ -230,6 +230,14 @@ def arc_traj(p1, p2, p3, v1, v3, r, dt=0.02):
         incoming[0] * (center[1] - start[1]) - incoming[1] * (center[0] - start[0])
     )
 
+    if num_steps <= 0:
+        return Trajectory(
+            positions=np.empty((0, 2)),
+            velocities=np.empty((0, 2)),
+            accelerations=np.empty((0, 2)),
+            states=np.empty(0, dtype=object),
+        )
+
     start_angle = math.atan2(start[1] - center[1], start[0] - center[0])
     arc_swept = 0.0
     v = v1

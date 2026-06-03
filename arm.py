@@ -5,7 +5,12 @@ import math
 import numpy as np
 from enum import Enum
 from obstacles import ObstacleType
-from obstacles import is_collision_circle, is_collision_polygon, _seg_circle, _seg_seg
+from obstacles import (
+    is_collision_circle,
+    is_collision_polygon,
+    seg_circle_vec,
+    seg_seg_vec,
+)
 
 L1 = 40
 L2 = 30
@@ -41,8 +46,8 @@ def is_collision_batch(t1, t2, obstacles):
         if obs.getType() == ObstacleType.CIRCLE:
             center, radius = obs.getParams()
             cx, cy, r2 = float(center[0]), float(center[1]), float(radius) ** 2
-            result |= _seg_circle(ox, oy, ex, ey, cx, cy, r2)
-            result |= _seg_circle(ex, ey, tx, ty, cx, cy, r2)
+            result |= seg_circle_vec(ox, oy, ex, ey, cx, cy, r2)
+            result |= seg_circle_vec(ex, ey, tx, ty, cx, cy, r2)
         elif obs.getType() == ObstacleType.POLYGON:
             verts = obs.getParams()
             for k in range(len(verts)):
@@ -51,8 +56,8 @@ def is_collision_batch(t1, t2, obstacles):
                     float(verts[(k + 1) % len(verts)][0]),
                     float(verts[(k + 1) % len(verts)][1]),
                 )
-                result |= _seg_seg(ox, oy, ex, ey, p3x, p3y, p4x, p4y)
-                result |= _seg_seg(ex, ey, tx, ty, p3x, p3y, p4x, p4y)
+                result |= seg_seg_vec(ox, oy, ex, ey, p3x, p3y, p4x, p4y)
+                result |= seg_seg_vec(ex, ey, tx, ty, p3x, p3y, p4x, p4y)
     return result
 
 

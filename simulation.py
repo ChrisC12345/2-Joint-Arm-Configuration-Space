@@ -3,7 +3,6 @@
 import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from logger import Logger
 
 
 class SingleJointArmSim:
@@ -19,6 +18,8 @@ class SingleJointArmSim:
         kE=0.02,
         resistance=0.03,
         nominalVoltage=12.0,
+        friction=0.0,
+        max_friction=0.0,
         dt=0.02,
     ):
         self.mass = mass
@@ -29,6 +30,8 @@ class SingleJointArmSim:
         self.kE = kE
         self.resistance = resistance
         self.nominal_voltage = nominalVoltage
+        self.friction = friction
+        self.max_static_friction = max_friction
         self.dt = dt
 
         self.position = 0.0
@@ -54,8 +57,22 @@ class SingleJointArmSim:
     def setVoltage(self, voltage):
         self.voltage = max(-self.nominal_voltage, min(self.nominal_voltage, voltage))
 
+    def set_motor_torque(self):
+        self.current = (
+            (self.voltage - self.kE * self.velocity * self.gear_ratio) / self.resistance
+            if self.motor_powered
+            else 0.0
+        )
+        self.motor_torque = self.kE * self.current * self.gear_ratio
+
     def update(self, torque):
-        self.torque = torque
+        """update arm physics for one time step given total torque"""
+        self.torque = (
+            torque - math.copysign(self.friction, self.velocity)
+            if math.fabs(torque) > self.max_static_friction
+            or math.fabs(self.velocity) > 1e-2
+            else 0.0
+        )
         self.acceleration = self.torque / self.moi
         self.velocity += self.acceleration * self.dt
         self.position += (
@@ -66,13 +83,17 @@ class SingleJointArmSim:
             self.length * math.sin(self.position),
         )
 
-    def set_motor_torque(self):
-        self.current = (
-            (self.voltage - self.kE * self.velocity * self.gear_ratio) / self.resistance
-            if self.motor_powered
-            else 0.0
+    def update_accel(self, accel):
+        """update arm physics for one time step given acceleration"""
+        self.acceleration = accel
+        self.velocity += self.acceleration * self.dt
+        self.position += (
+            self.velocity - self.acceleration * self.dt / 2
+        ) * self.dt  # assumes constant acceleration during time step
+        self.endpoint = (
+            self.length * math.cos(self.position),
+            self.length * math.sin(self.position),
         )
-        self.motor_torque = self.kE * self.current * self.gear_ratio
 
 
 class DoubleJointArmSim:
@@ -82,29 +103,22 @@ class DoubleJointArmSim:
     def __init__(self, upper_arm, forearm):
         self.upper_arm = upper_arm
         self.forearm = forearm
-        self.g = -9.81
+        self.g = 9.81
 
-    def calculateExternalTorques(self):
-        """Returns (tau_ext1, tau_ext2): external torques on each joint from gravity
-        and Coriolis/centrifugal effects, derived from the Lagrangian EOM.
+    def update(self):
+        self.upper_arm.set_motor_torque()
+        self.forearm.set_motor_torque()
+        torques = self.calculateTorques()
+        self.upper_arm.update(torques[0])
+        self.forearm.update(torques[1])
 
-        Euler-Lagrange EOM: M(q)*q_ddot + V(q, q_dot) + G(q) = tau_motor
-        => external torques = -(V + G)
-
-        Mass matrix M:
-          M11 = I1 + I2 + m2*l1^2 + 2*m2*l1*r2*cos(t2)
-          M12 = M21 = I2 + m2*l1*r2*cos(t2)
-          M22 = I2
-        Coriolis/centrifugal V (h = m2*l1*r2*sin(t2)):
-          V1 = -h*(2*w1*w2 + w2^2)
-          V2 = +h*w1^2
-        Gravity G (PE = sum of -m*g*y since g < 0):
-          G1 = -(m1*r1 + m2*l1)*g*cos(t1) - m2*r2*g*cos(t1+t2)
-          G2 = -m2*r2*g*cos(t1+t2)
+    def calculateTorques(self):
+        """Returns: torques on each joint from gravity, about motor
+        Coriolis/centrifugal effects, and motor, derived from the Lagrangian EOM.
         """
         m1, l1, r1 = self.upper_arm.mass, self.upper_arm.length, self.upper_arm.dist_COM
         m2, r2 = self.forearm.mass, self.forearm.dist_COM
-        g = self.g
+        g = -self.g
 
         t1, t2 = self.upper_arm.position, self.forearm.position
         w1, w2 = self.upper_arm.velocity, self.forearm.velocity
@@ -136,13 +150,6 @@ class DoubleJointArmSim:
         alpha2 = (-M12 * tau_ext1 + M11 * tau_ext2) / det
 
         return I1 * alpha1, I2 * alpha2
-
-    def update(self):
-        self.upper_arm.set_motor_torque()
-        self.forearm.set_motor_torque()
-        externalTorques = self.calculateExternalTorques()
-        self.upper_arm.update(externalTorques[0])
-        self.forearm.update(externalTorques[1])
 
 
 def animateFreeFall(arm, t1_init=math.pi / 2, t2_init=0.0, w1_init=0.0, w2_init=0.0):
@@ -218,5 +225,9 @@ def animateFreeFall(arm, t1_init=math.pi / 2, t2_init=0.0, w1_init=0.0, w2_init=
 if __name__ == "__main__":
     upper_arm = SingleJointArmSim()
     forearm = SingleJointArmSim()
+    upper_arm.friction = 0.2
+    forearm.friction = 0.2
+    upper_arm.max_static_friction = 1
+    forearm.max_static_friction = 1
     arm = DoubleJointArmSim(upper_arm, forearm)
     ani = animateFreeFall(arm, t1_init=math.pi / 2, t2_init=0.5)

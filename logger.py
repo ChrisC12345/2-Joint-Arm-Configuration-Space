@@ -24,7 +24,7 @@ class Logger:
     _fig = None
     _ax = None
     _last_draw_time = 0.0
-    _DRAW_INTERVAL = 0.1  # redraw at most 10fps
+    _DRAW_INTERVAL = 0.2  # redraw at most 5fps
 
     # ---- graph state ----
     # series are identified internally by a (group, name) tuple, so the same
@@ -41,6 +41,7 @@ class Logger:
     _graph_bg = {}  # group name -> cached canvas background (for blitting)
     _graph_ylim = {}  # group name -> current (lo, hi) y-limits
     _last_graph_draw_time = 0.0
+    _GRAPH_DRAW_INTERVAL = 0.2  # graph redraws at most 5fps
     _GRAPH_WINDOW = 200  # rolling window length (samples)
 
     # ------------------------------------------------------------------
@@ -193,7 +194,7 @@ class Logger:
 
         # throttle: skip entirely until the redraw window has elapsed
         now = time.perf_counter()
-        if not rebuilt and now - cls._last_graph_draw_time < cls._DRAW_INTERVAL:
+        if not rebuilt and now - cls._last_graph_draw_time < cls._GRAPH_DRAW_INTERVAL:
             return
         cls._last_graph_draw_time = now
 
@@ -227,10 +228,15 @@ class Logger:
                 need_full = True
 
         canvas = cls._graph_fig.canvas
-        # full redraw only on (rare) layout/limit changes; this recaptures the
-        # background via the draw_event handler
+        # When layout or y-limits changed, schedule a non-blocking redraw and
+        # skip blitting this frame. draw_event fires after the idle repaint and
+        # recaptures the background so the next frame can blit cleanly.
+        # Using draw_idle() instead of draw() avoids blocking the main
+        # animation loop, which was causing lurching on first run.
         if need_full or not cls._graph_bg:
-            canvas.draw()
+            cls._graph_bg = {}
+            canvas.draw_idle()
+            return
 
         # fast path: restore the cached background and blit only the lines
         for group, ax in cls._graph_axes.items():

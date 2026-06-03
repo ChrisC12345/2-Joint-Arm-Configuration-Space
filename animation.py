@@ -622,7 +622,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
     fig.canvas.mpl_connect("key_press_event", on_key)
 
     ani = FuncAnimation(
-        fig, update, frames=None, interval=10, blit=True, cache_frame_data=False
+        fig, update, frames=None, interval=20, blit=True, cache_frame_data=False
     )
 
     fig.subplots_adjust(left=0.05, right=0.85, top=0.93, bottom=0.07, wspace=0.35)

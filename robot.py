@@ -50,11 +50,11 @@ class Robot:
         if self.trajectory is None:
             return
         idx = min(self.step, len(self.trajectory) - 1)
+        self.follower.follow_trajectory(self.trajectory, idx, self.DT)
+        self.sim.update()
         Logger.recordData("voltage1", self.sim.upper_arm.voltage)
         Logger.recordData("voltage2", self.sim.forearm.voltage)
         Logger.update()
-        self.follower.follow_trajectory(self.trajectory, idx, self.DT)
-        self.sim.update()
         if self.step < len(self.trajectory) - 1:
             self.step += 1
         self._sync_state()
@@ -124,11 +124,22 @@ if __name__ == "__main__":
                     smoothed,
                     v_max=(2.0, 2.0),
                     a_max=(4.0, 4.0),
-                    radius=0.2,
+                    radius=0.4,
                     v_turn=1.0,
                 )
                 robot = Robot()
                 robot.robotInit(trapezoid_trajectory)
+                # Pre-run the full trajectory so Logger._graph_ylim covers the
+                # complete data range before animation starts. Without this,
+                # y-limits expand during animation, triggering full graph
+                # repaints between frames and causing lurching on first run.
+                saved = Logger._GRAPH_DRAW_INTERVAL
+                Logger._GRAPH_DRAW_INTERVAL = 0.0  # disable throttle so every step updates ylim
+                for _ in range(len(trapezoid_trajectory)):
+                    robot.teleopPeriodic()
+                Logger._GRAPH_DRAW_INTERVAL = saved
+                plt.pause(0.2)  # let Logger windows render and cache blit backgrounds
+                robot.reset()
                 _, ax2 = animate_path(
                     trapezoid_trajectory.positions,
                     obstacles,

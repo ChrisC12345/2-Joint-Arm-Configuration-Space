@@ -97,21 +97,25 @@ def is_collision_polygon(p1, p2, polygon):
     return False
 
 
-def _seg_circle(p1x, p1y, p2x, p2y, cx, cy, r2):
+def seg_circle_vec(p1x, p1y, p2x, p2y, cx, cy, r2):
     """Vectorized segment-circle collision; p1/p2 are arrays, cx/cy/r2 are scalars."""
     dx, dy = p2x - p1x, p2y - p1y
-    ls = np.where(dx * dx + dy * dy == 0, 1e-30, dx * dx + dy * dy)
+    ls = np.where(dx * dx + dy * dy == 0, 1e-30, dx * dx + dy * dy)  # norm squared
+    # parameter of closest point from seg p1-p2 to c using vector projection
     t = np.clip(((cx - p1x) * dx + (cy - p1y) * dy) / ls, 0.0, 1.0)
     qx, qy = p1x + t * dx - cx, p1y + t * dy - cy
     return qx * qx + qy * qy < r2
 
 
-def _seg_seg(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y):
+def seg_seg_vec(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y):
     """Vectorized segment-segment intersection; p1/p2 are arrays, p3/p4 are scalars."""
     e1x, e1y = p3x - p1x, p3y - p1y
     e2x, e2y = p2x - p3x, p2y - p3y
     e3x, e3y = p4x - p2x, p4y - p2y
     e4x, e4y = p1x - p4x, p1y - p4y
+
+    # use cross product to determine if consecutive edges are all in cw or ccw
+    # positive cross product means second vector is ccw of first, negative means cw
     c1 = e1x * e2y - e1y * e2x
     c2 = e2x * e3y - e2y * e3x
     c3 = e3x * e4y - e3y * e4x
@@ -119,6 +123,13 @@ def _seg_seg(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y):
     r = ((c1 > 0) & (c2 > 0) & (c3 > 0) & (c4 > 0)) | (
         (c1 < 0) & (c2 < 0) & (c3 < 0) & (c4 < 0)
     )
+
+    # skip unecessary compute 
+    return r
+
+    # handle collinear edge case
+    # this is actually pretty unessecary since the probability of a random segment 
+    # being exactly collinear with an edge is basically 0, but we want to be robust
     r |= (
         (c1 == 0)
         & (np.minimum(p1x, p2x) <= p3x)
