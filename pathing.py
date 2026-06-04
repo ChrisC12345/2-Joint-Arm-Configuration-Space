@@ -6,13 +6,20 @@ from arm import is_collision_batch
 from torus import torus_diff, torus_wrap, torus_dist_sq
 
 
-def _line_free(a, b, obstacles):
+def _line_free(a, b, obstacles, resolution=0.05):
     """Return True if the straight arc a→b in C-space is collision-free."""
     diff = (b - a + math.pi) % (2 * math.pi) - math.pi
-    n = max(4, int(np.linalg.norm(diff) / 0.05))
+    n = max(4, int(np.linalg.norm(diff) / resolution))
     ts = np.linspace(0, 1, n, endpoint=False)
     configs = ((a + ts[:, None] * diff) + math.pi) % (2 * math.pi) - math.pi
     return not np.any(is_collision_batch(configs[:, 0], configs[:, 1], obstacles))
+
+def _line_free_vec(start, vec, obstacles, resolution=0.05):
+    """Return True if the straight arc start -> start + vec in C-space is collision-free."""
+    length = np.linalg.norm(vec)
+    num_pts = max(2, int(length / resolution))
+    points = torus_wrap(start + np.linspace(0, 1, num_pts)[:, None] * vec)
+    return not np.any(is_collision_batch(points[:, 0], points[:, 1], obstacles))
 
 
 def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
@@ -67,11 +74,14 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
 def smooth_path(path, obstacles):
     path = [np.asarray(p, float) for p in path]
     i = 0
+    vec = torus_diff(path[1], path[0])
     while i < len(path) - 2:
-        if _line_free(path[i], path[i + 2], obstacles):
+        vec = vec + torus_diff(path[i + 2], path[i + 1])
+        if _line_free_vec(path[i], vec, obstacles):
             path.pop(i + 1)
         else:
             i += 1
+            vec = torus_diff(path[i + 1], path[i])
     return [tuple(p) for p in path]
 
 

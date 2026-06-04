@@ -24,7 +24,7 @@ class Logger:
     _fig = None
     _ax = None
     _last_draw_time = 0.0
-    _DRAW_INTERVAL = 0.2  # redraw at most 5fps
+    _DRAW_INTERVAL = 0.1  # redraw at most 5fps
 
     # ---- graph state ----
     # series are identified internally by a (group, name) tuple, so the same
@@ -41,7 +41,7 @@ class Logger:
     _graph_bg = {}  # group name -> cached canvas background (for blitting)
     _graph_ylim = {}  # group name -> current (lo, hi) y-limits
     _last_graph_draw_time = 0.0
-    _GRAPH_DRAW_INTERVAL = 0.2  # graph redraws at most 5fps
+    _GRAPH_DRAW_INTERVAL = 0.1  # graph redraws at most 5fps
     _GRAPH_WINDOW = 200  # rolling window length (samples)
 
     # ------------------------------------------------------------------
