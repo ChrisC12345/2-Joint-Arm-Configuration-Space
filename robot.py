@@ -117,9 +117,8 @@ if __name__ == "__main__":
                 print("no path found")
             else:
                 print("path length before smoothing:", len(path))
-                smoothed = smooth_path(path.copy(), obstacles)
+                smoothed = smooth_path(path, obstacles)
                 print("path length after smoothing:", len(smoothed))
-                interp_smoothed = interpolate_path(smoothed)
                 trapezoid_trajectory = trapezoidal_arc_traj(
                     smoothed,
                     v_max=(2.0, 2.0),

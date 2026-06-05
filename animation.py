@@ -256,12 +256,11 @@ def pick_start_goal(grid):
 
 
 def plot_path_on_cspace(ax, path, label, color, fade=False):
-    """Overlay a (t1, t2) path onto an existing c-space axes."""
+    """Overlay a Path onto an existing c-space axes."""
     t1s, t2s = [], []
-    for i in range(len(path) - 1):
-        a = np.array(path[i])
-        b = np.array(path[i + 1])
-        diff = (b - a + math.pi) % (2 * math.pi) - math.pi
+    for i in range(len(path.points) - 1):
+        a = np.array(path.points[i])
+        diff = np.array(path.steps[i])
         n = max(2, int(np.linalg.norm(diff) / 0.05))
         ts = np.linspace(0, 1, n + 1)
         pts = ((a + ts[:, None] * diff) + math.pi) % (2 * math.pi) - math.pi
@@ -274,8 +273,8 @@ def plot_path_on_cspace(ax, path, label, color, fade=False):
     linewidth, alpha = (2, 0.85) if not fade else (1, 0.3)
     ax.plot(t1s, t2s, "-", color=color, linewidth=linewidth, alpha=alpha, label=label)
     ax.plot(
-        [p[0] for p in path],
-        [p[1] for p in path],
+        [p[0] for p in path.points],
+        [p[1] for p in path.points],
         "o",
         color=color,
         markersize=linewidth * 1.5,

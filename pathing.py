@@ -3,7 +3,16 @@
 import numpy as np
 import math
 from arm import is_collision_batch
-from torus import torus_diff, torus_wrap, torus_dist_sq
+from torus import torus_diff, torus_tuple_diff, torus_wrap, torus_dist_sq
+
+class Path:
+    def __init__(self, points, steps):
+        """Represents a trajectory path with given points and vectors steps between points."""
+        self.points = points # list of tuples
+        self.steps = steps # list of np arrays
+
+    def __len__(self):
+        return len(self.points)
 
 
 def _line_free(a, b, obstacles, resolution=0.05):
@@ -14,7 +23,7 @@ def _line_free(a, b, obstacles, resolution=0.05):
     configs = ((a + ts[:, None] * diff) + math.pi) % (2 * math.pi) - math.pi
     return not np.any(is_collision_batch(configs[:, 0], configs[:, 1], obstacles))
 
-def _line_free_vec(start, vec, obstacles, resolution=0.05):
+def _line_free_vec(start, vec, obstacles, resolution=0.01):
     """Return True if the straight arc start -> start + vec in C-space is collision-free."""
     length = np.linalg.norm(vec)
     num_pts = max(2, int(length / resolution))
@@ -61,30 +70,40 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
             # check if we reached the goal
             if torus_dist_sq(goal, nodes[n_nodes - 1 : n_nodes])[0] < step_size**2:
                 path = []
+                steps = []
                 idx = n_nodes - 1
-                while idx >= 0:
+                while idx > 0:
                     path.append(tuple(nodes[idx]))
+                    steps.append(np.array(torus_tuple_diff(nodes[idx], nodes[parent[idx]])))
                     idx = parent[idx]
+                path.append(tuple(nodes[0]))  # add start
                 path.reverse()
-                return path
+                steps.reverse()
+                return Path(path, steps)
 
     return None
 
 
-def smooth_path(path, obstacles):
-    path = [np.asarray(p, float) for p in path]
+def smooth_path(rrt_path, obstacles):
+    path = [np.asarray(p, float) for p in rrt_path.points]
+    vectors = list(rrt_path.steps)  # copy to avoid mutating input
     i = 0
-    vec = torus_diff(path[1], path[0])
+    vec = np.zeros(2)
     while i < len(path) - 2:
-        vec = vec + torus_diff(path[i + 2], path[i + 1])
+        vec += vectors[i]
         if _line_free_vec(path[i], vec, obstacles):
             path.pop(i + 1)
+            vectors.pop(i)
         else:
+            vectors[i] = vec  # save accumulated displacement for this segment
             i += 1
-            vec = torus_diff(path[i + 1], path[i])
-    return [tuple(p) for p in path]
+            vec = np.zeros(2)
+    if i < len(vectors) and np.linalg.norm(vec) > 0:
+        vectors[i] = vec  # save last segment's accumulated displacement
+    return Path([tuple(p) for p in path], vectors)
 
 
+# this isnt really used
 def interpolate_path(path, resolution=0.05):
     dense_path = []
     for i in range(len(path) - 1):
