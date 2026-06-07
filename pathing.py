@@ -1,15 +1,18 @@
-"""RRT path planning and path smoothing for a 2-link arm in C-space, treating the space as a torus."""
+"""RRT path planning and path smoothing for a 2-link arm in C-space,
+treating the space as a torus."""
 
 import numpy as np
 import math
 from arm import is_collision_batch
 from torus import torus_diff, torus_tuple_diff, torus_wrap, torus_dist_sq
 
+
 class Path:
     def __init__(self, points, steps):
-        """Represents a trajectory path with given points and vectors steps between points."""
-        self.points = points # list of tuples
-        self.steps = steps # list of np arrays
+        """Represents a trajectory path with given points and
+        vectors steps between points."""
+        self.points = points  # list of tuples
+        self.steps = steps  # list of np arrays
 
     def __len__(self):
         return len(self.points)
@@ -23,8 +26,10 @@ def _line_free(a, b, obstacles, resolution=0.05):
     configs = ((a + ts[:, None] * diff) + math.pi) % (2 * math.pi) - math.pi
     return not np.any(is_collision_batch(configs[:, 0], configs[:, 1], obstacles))
 
+
 def _line_free_vec(start, vec, obstacles, resolution=0.01):
-    """Return True if the straight arc start -> start + vec in C-space is collision-free."""
+    """Return True if the straight arc start -> start + vec in C-space
+    is collision-free."""
     length = np.linalg.norm(vec)
     num_pts = max(2, int(length / resolution))
     points = torus_wrap(start + np.linspace(0, 1, num_pts)[:, None] * vec)
@@ -74,7 +79,9 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
                 idx = n_nodes - 1
                 while idx > 0:
                     path.append(tuple(nodes[idx]))
-                    steps.append(np.array(torus_tuple_diff(nodes[idx], nodes[parent[idx]])))
+                    steps.append(
+                        np.array(torus_tuple_diff(nodes[idx], nodes[parent[idx]]))
+                    )
                     idx = parent[idx]
                 path.append(tuple(nodes[0]))  # add start
                 path.reverse()
@@ -86,18 +93,18 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
 
 def smooth_path(rrt_path, obstacles):
     path = [np.asarray(p, float) for p in rrt_path.points]
-    vectors = list(rrt_path.steps)  # copy to avoid mutating input
+    vectors = [v.copy() for v in rrt_path.steps]
     i = 0
-    vec = np.zeros(2)
+    vec = vectors[0]
     while i < len(path) - 2:
-        vec += vectors[i]
+        vec += vectors[i+1]
         if _line_free_vec(path[i], vec, obstacles):
             path.pop(i + 1)
             vectors.pop(i)
         else:
-            vectors[i] = vec  # save accumulated displacement for this segment
+            vectors[i] = vec - vectors[i+1]  # save accumulated displacement
             i += 1
-            vec = np.zeros(2)
+            vec = vectors[i]
     if i < len(vectors) and np.linalg.norm(vec) > 0:
         vectors[i] = vec  # save last segment's accumulated displacement
     return Path([tuple(p) for p in path], vectors)
@@ -122,8 +129,10 @@ def interpolate_path(path, resolution=0.05):
 
 
 def is_reachable(grid, start, goal, N=200):
-    """Returns True if there is a path from start to goal through free cells in the grid, treating the grid as a torus.
-    grid is a 2D numpy array where 0 = free and 1 = occupied. start and goal are (t1, t2) configs."""
+    """Returns True if there is a path from start to goal through free cells in the
+    grid, treating the grid as a torus.
+    grid is a 2D numpy array where 0 = free and 1 = occupied.
+    start and goal are (t1, t2) configs."""
 
     # convert configs to grid indices
     def to_idx(config):

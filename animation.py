@@ -289,7 +289,7 @@ def plot_path_on_cspace(ax, path, label, color, fade=False):
     )
 
 
-def animate_path(path, obstacles, grid, title="path", robot=None):
+def animate_path(path, obstacles, grid, title="path", robot=None, dt = 0.02):
     """
     path:  (t1, t2) setpoint sequence — animated directly or used as
         PID reference
@@ -531,8 +531,8 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
             _pid_t2_hist.append(t2_dot)
             _tip_x_hist.append(tx)
             _tip_y_hist.append(ty)
-            pid_trace.set_data(*_wrap_trace(_pid_t1_hist[-500:], _pid_t2_hist[-500:]))
-            tip_trace.set_data(_tip_x_hist[-500:], _tip_y_hist[-500:])
+            pid_trace.set_data(*_wrap_trace(_pid_t1_hist, _pid_t2_hist))
+            tip_trace.set_data(_tip_x_hist, _tip_y_hist)
             sp_dot.set_data([robot.setpoint_t1], [robot.setpoint_t2])
         else:
             idx = min(_step[0], len(path) - 1)
@@ -621,7 +621,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
     fig.canvas.mpl_connect("key_press_event", on_key)
 
     ani = FuncAnimation(
-        fig, update, frames=None, interval=20, blit=True, cache_frame_data=False
+        fig, update, frames=None, interval=dt * 1000, blit=True, cache_frame_data=False
     )
 
     fig.subplots_adjust(left=0.05, right=0.85, top=0.93, bottom=0.07, wspace=0.35)

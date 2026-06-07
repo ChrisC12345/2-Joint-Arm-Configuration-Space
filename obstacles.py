@@ -27,7 +27,8 @@ class CircleObstacle(Obstacle):
 
 
 class PolygonObstacle(Obstacle):
-    """vertices should be a list of numpy arrays (x,y) in cw or ccw order, at least 1 vertex"""
+    """vertices should be a list of numpy arrays (x,y) in cw or ccw order,
+    at least 1 vertex"""
 
     def __init__(self, vertices):
         super().__init__(ObstacleType.POLYGON, vertices)
@@ -70,7 +71,8 @@ def is_collision_segment(p1, p2, p3, p4):
 
     # deal with pesky edge case of collinearity, won't happen 99% of the time but we want to be robust
     def on_segment(p1, p2, p3):
-        """given three collinear points, returns True if p3 is on the line segment p1-p2 including endpoints"""
+        """given three collinear points,
+        returns True if p3 is on the line segment p1-p2 including endpoints"""
         return min(p1[0], p2[0]) <= p3[0] <= max(p1[0], p2[0]) and min(
             p1[1], p2[1]
         ) <= p3[1] <= max(p1[1], p2[1])
@@ -88,7 +90,8 @@ def is_collision_segment(p1, p2, p3, p4):
 
 
 def is_collision_polygon(p1, p2, polygon):
-    """returns True if segment p1-p2 collides with polygon, treating endpoints as not part of the segment"""
+    """returns True if segment p1-p2 collides with polygon,
+    treating endpoints as not part of the segment"""
     for i in range(len(polygon)):
         p3 = polygon[i]
         p4 = polygon[(i + 1) % len(polygon)]
@@ -124,11 +127,11 @@ def seg_seg_vec(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y):
         (c1 < 0) & (c2 < 0) & (c3 < 0) & (c4 < 0)
     )
 
-    # skip unecessary compute 
+    # skip unecessary compute
     return r
 
     # handle collinear edge case
-    # this is actually pretty unessecary since the probability of a random segment 
+    # this is actually pretty unessecary since the probability of a random segment
     # being exactly collinear with an edge is basically 0, but we want to be robust
     r |= (
         (c1 == 0)

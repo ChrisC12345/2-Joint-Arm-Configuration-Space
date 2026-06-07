@@ -75,15 +75,17 @@ def trapezoidal_arc_traj(path, v_max, a_max, radius, v_turn, dt=0.02):
         start = waypoints[0]
         start_v = 0
         prev_end_vec = np.zeros(2)
-        for i in range(1, len(waypoints) - 1):
-            p1, p2, p3 = waypoints[i - 1], waypoints[i], waypoints[i + 1]
-            u1, u3 = steps[i - 1], steps[i]
-            _, c2, _, vec, end_vec, *_ = calc_arc_params(p1, u1, u3, radius)
+        for i in range(len(waypoints) - 2):
+            p1 = waypoints[i]
+            u1, u3 = steps[i], steps[i + 1]
+            _, arc_end, _, vec, end_vec, *_ = calc_arc_params(p1, u1, u3, radius)
 
             # vector from start (prev arc end) to c1: u1 minus both arc offsets
-            traj += trap_traj_endpts(start, u1 - vec - prev_end_vec, v_max, a_max, start_v, v_turn, dt=dt)
+            traj += trap_traj_endpts(
+                start, u1 - vec - prev_end_vec, v_max, a_max, start_v, v_turn, dt=dt
+            )
             traj += arc_traj(p1, u1, u3, v_turn, v_turn, radius, dt=dt)
-            start = c2
+            start = arc_end
             start_v = v_turn
             prev_end_vec = end_vec
         traj += trap_traj_endpts(start, u3 - end_vec, v_max, a_max, v_turn, 0, dt=dt)
@@ -122,23 +124,30 @@ def trap_traj_endpts(p1, u1, v_max, a_max, v1=0, v2=0, dt=0.02):
             states=np.array(["hold"]),
         )
 
-    slope = (diff[1]) / (diff[0]) if diff[0] != 0 else math.inf
+    slope = (diff[1]) / (diff[0]) if diff[0] != 0 else float("inf")
 
     # choose the more restrictive constraint between the two joints to ensure we don't
     # exceed limits on either joint
-    if a_max[1] / a_max[0] > slope:
+    if a_max[1] / a_max[0] > math.fabs(slope):
         ratio = 1 / math.sqrt(1 + slope**2)  # ratio between x and total components
         max_accel = a_max[0] * ratio
-        max_vel = v_max[0] * ratio
     else:
         ratio = 1 / math.sqrt(
             1 + (1 / slope) ** 2
         )  # ratio between y and total components
         max_accel = a_max[1] * ratio
+
+    if v_max[1] / v_max[0] > math.fabs(slope):
+        ratio = 1 / math.sqrt(1 + slope**2)  # ratio between x and total components
+        max_vel = v_max[0] * ratio
+    else:
+        ratio = 1 / math.sqrt(
+            1 + (1 / slope) ** 2
+        )  # ratio between y and total components
         max_vel = v_max[1] * ratio
 
     # derived from vf^2-v0^2 = 2ax with v1-peak_v and v_peak-v2
-    peak_vel = min(max_vel, math.sqrt(2 * max_accel * distance + v1**2 + v2**2))
+    peak_vel = min(max_vel, math.sqrt((2 * max_accel * distance + v1**2 + v2**2) / 2))
     accel_steps = int((peak_vel - v1) / max_accel / dt)
     decel_steps = int((peak_vel - v2) / max_accel / dt)
     cruise_steps = int(
@@ -193,11 +202,18 @@ def calc_arc_params(p1, u1, u3, r):
     """helper function to calculate the center and start/end points of a circular arc
     going from p1 to p3 with p2 as an intermediate point
 
+    Parameters
+    ---
+    p1 : starting point in configuration space np array of joint angles
+    u1 : vector from p1 to p2
+    u3 : vector from p2 to p3
+    r : desired radius of the circular arc
+
     Returns
     ---
     start, end, center, angle subtended at center by the arc"""
     p2 = np.array(p1) + u1
-    angle = math.acos(np.dot(u1, u3) / (np.linalg.norm(u1) * np.linalg.norm(u3))) / 2
+    angle = math.acos(np.dot(-u1, u3) / (np.linalg.norm(-u1) * np.linalg.norm(u3))) / 2
 
     safe_r = min(
         r, np.linalg.norm(u1) * math.tan(angle), np.linalg.norm(u3) * math.tan(angle)
@@ -207,7 +223,9 @@ def calc_arc_params(p1, u1, u3, r):
     end_vec = safe_r / math.tan(angle) * (u3 / np.linalg.norm(u3))
     start = p2 - vec  # arc start sits between p1 and p2
     end = p2 + end_vec
-    bisector = -u1 / np.linalg.norm(u1) + u3 / np.linalg.norm(u3)  # both point away from p2
+    bisector = -u1 / np.linalg.norm(u1) + u3 / np.linalg.norm(
+        u3
+    )  # both point away from p2
     center = p2 + safe_r / math.sin(angle) * bisector / np.linalg.norm(bisector)
 
     return start, end, center, vec, end_vec, safe_r, math.pi - 2 * angle
@@ -231,7 +249,7 @@ def arc_traj(p1, u1, u3, v1, v3, r, dt=0.02):
     accel = (v3**2 - v1**2) / (2 * arc_length)
     num_steps = int(arc_length / ((v1 + v3) / 2) / dt)
 
-    # determine CW (-1) or CCW (+1) from cross product of incoming direction × centripetal
+    # determine CW (-1) or CCW (+1) from cross product of incoming  and centripetal
     incoming = u1
     turn_sign = np.sign(
         incoming[0] * (center[1] - start[1]) - incoming[1] * (center[0] - start[0])
@@ -296,6 +314,7 @@ def decompose_scalar(p1, p2, scalar):
     y_comp = p1[1] + scalar * diff[1] / distance
     return (x_comp, y_comp)
 
+
 def decompose_scalar_vec(start, vec, scalar):
     """decomposes a scalar value into x and y components along start-(start+vec)
 
@@ -309,4 +328,3 @@ def decompose_scalar_vec(start, vec, scalar):
     x_comp = start[0] + scalar * vec[0] / distance
     y_comp = start[1] + scalar * vec[1] / distance
     return (x_comp, y_comp)
-    

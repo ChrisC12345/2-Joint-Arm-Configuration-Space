@@ -121,8 +121,8 @@ if __name__ == "__main__":
                 print("path length after smoothing:", len(smoothed))
                 trapezoid_trajectory = trapezoidal_arc_traj(
                     smoothed,
-                    v_max=(2.0, 2.0),
-                    a_max=(4.0, 4.0),
+                    v_max=(2.0, 4.0),
+                    a_max=(4.0, 8.0),
                     radius=0.4,
                     v_turn=1.0,
                 )
@@ -133,7 +133,9 @@ if __name__ == "__main__":
                 # y-limits expand during animation, triggering full graph
                 # repaints between frames and causing lurching on first run.
                 saved = Logger._GRAPH_DRAW_INTERVAL
-                Logger._GRAPH_DRAW_INTERVAL = 0.0  # disable throttle so every step updates ylim
+                Logger._GRAPH_DRAW_INTERVAL = (
+                    0.0  # disable throttle so every step updates ylim
+                )
                 for _ in range(len(trapezoid_trajectory)):
                     robot.teleopPeriodic()
                 Logger._GRAPH_DRAW_INTERVAL = saved
