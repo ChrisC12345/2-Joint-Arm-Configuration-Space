@@ -36,7 +36,44 @@ def _line_free_vec(start, vec, obstacles, resolution=0.01):
     return not np.any(is_collision_batch(points[:, 0], points[:, 1], obstacles))
 
 
+def choose_new_node(nodes, n_nodes, bias, goal, step_size):
+    """Choose a new node to add to the RRT. Returns (nearest_idx, new_node)"""
+    # sample: bias toward goal 10 % of the time
+    point = (
+        goal if np.random.random() < bias else np.random.uniform(-math.pi, math.pi, 2)
+    )
+
+    # nearest neighbour — one vectorised numpy call instead of a Python loop
+    nearest_idx = int(np.argmin(torus_dist_sq(point, nodes[:n_nodes])))
+    nearest = nodes[nearest_idx]
+
+    # steer toward sample by step_size
+    direction = torus_diff(point, nearest)  # alternative using torus_diff function
+    norm = math.hypot(direction[0], direction[1])
+    if norm < 1e-10:
+        return None, None
+    new_node = torus_wrap(nearest + direction * (step_size / norm))
+    return nearest_idx, new_node
+
+
+def retrace_path(nodes, parent, idx):
+    """Retrace path from start to node at index idx. Returns a Path object."""
+    path = []
+    steps = []
+    idx = idx
+    while idx > 0:
+        print(f"idx={idx} node={nodes[idx]} parent={parent[idx]}")
+        path.append(tuple(nodes[idx]))
+        steps.append(np.array(torus_tuple_diff(nodes[idx], nodes[parent[idx]])))
+        idx = parent[idx]
+    path.append(tuple(nodes[0]))  # add start
+    path.reverse()
+    steps.reverse()
+    return Path(path, steps)
+
+
 def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
+    """Basic RRT algorithm to find a path from start to goal in C-space."""
     start = np.asarray(start, float)
     goal = np.asarray(goal, float)
 
@@ -49,46 +86,111 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
     GOAL_BIAS = 0.1
 
     for _ in range(max_iter):
-        # sample: bias toward goal 10 % of the time
-        point = (
-            goal
-            if np.random.random() < GOAL_BIAS
-            else np.random.uniform(-math.pi, math.pi, 2)
+        nearest_idx, new_node = choose_new_node(
+            nodes, n_nodes, GOAL_BIAS, goal, step_size
         )
 
-        # nearest neighbour — one vectorised numpy call instead of a Python loop
-        nearest_idx = int(np.argmin(torus_dist_sq(point, nodes[:n_nodes])))
-        nearest = nodes[nearest_idx]
-
-        # steer toward sample by step_size
-        direction = torus_diff(point, nearest)  # alternative using torus_diff function
-        norm = math.hypot(direction[0], direction[1])
-        if norm < 1e-10:
-            continue
-        new_node = torus_wrap(nearest + direction * (step_size / norm))
-
-        if _line_free(nearest, new_node, obstacles):
+        if new_node is not None and _line_free(nodes[nearest_idx], new_node, obstacles):
             nodes[n_nodes] = new_node
             parent.append(nearest_idx)
             n_nodes += 1
 
             # check if we reached the goal
             if torus_dist_sq(goal, nodes[n_nodes - 1 : n_nodes])[0] < step_size**2:
-                path = []
-                steps = []
-                idx = n_nodes - 1
-                while idx > 0:
-                    path.append(tuple(nodes[idx]))
-                    steps.append(
-                        np.array(torus_tuple_diff(nodes[idx], nodes[parent[idx]]))
-                    )
-                    idx = parent[idx]
-                path.append(tuple(nodes[0]))  # add start
-                path.reverse()
-                steps.reverse()
-                return Path(path, steps)
+                return retrace_path(nodes, parent, n_nodes - 1)
 
     return None
+
+
+def choose_parent(new_node, nodes, parent, cost, nearest_idx, in_radius, obstacles):
+    """Choose parent for new_node from nodes in in_radius, and update cost."""
+    least_cost_idx = nearest_idx  # index of least cost node in radius
+    nearest = nodes[nearest_idx]
+    least_cost = cost[nearest_idx] + np.linalg.norm(torus_diff(new_node, nearest))
+    for i in in_radius:
+        node = nodes[i]
+        if (
+            _line_free(node, new_node, obstacles)
+            and cost[i] + np.linalg.norm(torus_diff(new_node, nodes[i])) < least_cost
+        ):
+            least_cost_idx = i
+            least_cost = cost[i] + np.linalg.norm(torus_diff(new_node, nodes[i]))
+            parent[-1] = least_cost_idx
+            cost[-1] = least_cost
+
+
+def propagate_cost(i, nodes, parent, cost, n_nodes):
+    """Recursively update cost of all descendants of node i."""
+    for j in range(n_nodes):
+        if parent[j] == i:
+            cost[j] = cost[i] + np.linalg.norm(torus_diff(nodes[j], nodes[i]))
+            propagate_cost(j, nodes, parent, cost, n_nodes)
+
+
+def rewire(new_node, nodes, n_nodes, parent, cost, in_radius, obstacles):
+    """Rewire nodes in in_radius to new_node if it reduces their cost."""
+    for i in in_radius:
+        node = nodes[i]
+        if (
+            _line_free(node, new_node, obstacles)
+            and cost[-1] + np.linalg.norm(torus_diff(new_node, nodes[i])) < cost[i]
+        ):
+            parent[i] = n_nodes
+            cost[i] = cost[-1] + np.linalg.norm(torus_diff(new_node, nodes[i]))
+            propagate_cost(i, nodes, parent, cost, n_nodes + 1)
+
+
+def rrt_star(start, goal, obstacles, max_iter=5000, step_size=0.05, radius=0.2):
+    start = np.asarray(start, float)
+    goal = np.asarray(goal, float)
+
+    nodes = np.empty((max_iter + 2, 2))
+    nodes[0] = start
+    n_nodes = 1  # number of nodes currently in the tree
+    parent = [-1]  # index of parent node
+    cost = [0.0]  # cost[i] = cost to reach node i
+    best_goal_node = None  # index of best node
+
+    GOAL_BIAS = 0.1
+
+    for _ in range(max_iter):
+        nearest_idx, new_node = choose_new_node(
+            nodes, n_nodes, GOAL_BIAS, goal, step_size
+        )
+        if new_node is None:
+            continue
+        nearest = nodes[nearest_idx]
+
+        if _line_free(nearest, new_node, obstacles):
+            nodes[n_nodes] = new_node
+            parent.append(nearest_idx)
+            cost.append(
+                cost[nearest_idx] + np.linalg.norm(torus_diff(new_node, nearest))
+            )
+
+            # choose parent from nodes within radius
+            in_radius = np.where(torus_dist_sq(nodes[:n_nodes], new_node) < radius**2)[
+                0
+            ]  # indices of nodes within radius
+            choose_parent(
+                new_node, nodes, parent, cost, nearest_idx, in_radius, obstacles
+            )
+
+            # rewire
+            rewire(new_node, nodes, n_nodes, parent, cost, in_radius, obstacles)
+
+            if torus_dist_sq(goal, new_node.reshape(1, 2))[0] < step_size**2:
+                if best_goal_node is None or cost[-1] < cost[best_goal_node]:
+                    best_goal_node = n_nodes
+
+            n_nodes += 1
+
+    # get best path
+    return (
+        retrace_path(nodes, parent, best_goal_node)
+        if best_goal_node is not None
+        else None
+    )
 
 
 def smooth_path(rrt_path, obstacles):
@@ -97,17 +199,21 @@ def smooth_path(rrt_path, obstacles):
     i = 0
     vec = vectors[0]
     while i < len(path) - 2:
-        vec += vectors[i+1]
+        vec += vectors[i + 1]
         if _line_free_vec(path[i], vec, obstacles):
             path.pop(i + 1)
             vectors.pop(i)
         else:
-            vectors[i] = vec - vectors[i+1]  # save accumulated displacement
+            vectors[i] = vec - vectors[i + 1]  # save accumulated displacement
             i += 1
             vec = vectors[i]
     if i < len(vectors) and np.linalg.norm(vec) > 0:
         vectors[i] = vec  # save last segment's accumulated displacement
     return Path([tuple(p) for p in path], vectors)
+
+
+def smooth_djikstra(rrt_path, obstacles):
+    pass
 
 
 # this isnt really used

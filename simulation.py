@@ -6,6 +6,7 @@ import matplotlib.animation as animation
 import matplotlib.colors as mcolors
 
 from logger import Logger
+from torus import torus_wrap
 
 
 class SingleJointArmSim:
@@ -51,7 +52,7 @@ class SingleJointArmSim:
         self.motor_powered = motorPowered
 
     def setPosition(self, position):
-        self.position = position
+        self.position = torus_wrap(position)
         self.endpoint = (
             self.length * math.cos(self.position),
             self.length * math.sin(self.position),
@@ -81,11 +82,12 @@ class SingleJointArmSim:
         self.position += (
             self.velocity - self.acceleration * self.dt / 2
         ) * self.dt  # assumes constant acceleration during time step
+        self.position = torus_wrap(self.position)
         self.endpoint = (
             self.length * math.cos(self.position),
             self.length * math.sin(self.position),
         )
-    
+
 
 class DoubleJointArmSim:
     """simulates a double joint arm with motors at both joints,
@@ -102,7 +104,6 @@ class DoubleJointArmSim:
         torques = self.calculateTorques()
         self.upper_arm.update(torques[0])
         self.forearm.update(torques[1])
-
 
     def calculateTorques(self):
         """Returns: torques on each joint from gravity, about motor
@@ -278,8 +279,8 @@ def animateFreeFall(
 
 
 if __name__ == "__main__":
-    upper_arm = SingleJointArmSim(dt = 0.01)
-    forearm = SingleJointArmSim(dt = 0.01)
+    upper_arm = SingleJointArmSim(dt=0.01)
+    forearm = SingleJointArmSim(dt=0.01)
     upper_arm.friction = 2
     forearm.friction = 2
     upper_arm.max_static_friction = 0

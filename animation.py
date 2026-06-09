@@ -289,7 +289,7 @@ def plot_path_on_cspace(ax, path, label, color, fade=False):
     )
 
 
-def animate_path(path, obstacles, grid, title="path", robot=None, dt = 0.02):
+def animate_path(path, obstacles, grid, title="path", robot=None, dt=0.02):
     """
     path:  (t1, t2) setpoint sequence — animated directly or used as
         PID reference
@@ -462,14 +462,24 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt = 0.02):
             solid_capstyle="round",
         )
         (tip_trace,) = ax1.plot([], [], "-", color="orange", linewidth=1.2, alpha=0.7)
-        ax1.plot([], [], "--", color="blue", alpha=0.6, label="setpoint")
-        ax1.plot([], [], "-", color="blue", alpha=0.7, label="actual tip")
-        ax1.legend(loc="upper right", fontsize=8)
+        (sp_tip_trace,) = ax1.plot([], [], "--", color="cyan", linewidth=1.0, alpha=0.6)
+        ax1.plot([], [], "--", color="purple", alpha=0.6, label="setpoint arm")
+        ax1.plot([], [], "--", color="cyan", alpha=0.6, label="setpoint tip")
+        ax1.plot([], [], "-", color="orange", alpha=0.7, label="actual tip")
+        ax1.legend(
+            loc="upper left",
+            bbox_to_anchor=(1.02, 1),
+            fontsize=7,
+            framealpha=0.85,
+            borderaxespad=0,
+        )
 
         _pid_t1_hist = []
         _pid_t2_hist = []
         _tip_x_hist = []
         _tip_y_hist = []
+        _sp_tip_x_hist = []
+        _sp_tip_y_hist = []
         _state_history = []
 
         def _reset_robot():
@@ -478,9 +488,12 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt = 0.02):
             _pid_t2_hist.clear()
             _tip_x_hist.clear()
             _tip_y_hist.clear()
+            _sp_tip_x_hist.clear()
+            _sp_tip_y_hist.clear()
             _state_history.clear()
             pid_trace.set_data([], [])
             tip_trace.set_data([], [])
+            sp_tip_trace.set_data([], [])
             _frame[0] = 0
 
         _reset_robot()
@@ -531,8 +544,11 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt = 0.02):
             _pid_t2_hist.append(t2_dot)
             _tip_x_hist.append(tx)
             _tip_y_hist.append(ty)
+            _sp_tip_x_hist.append(sp_tx)
+            _sp_tip_y_hist.append(sp_ty)
             pid_trace.set_data(*_wrap_trace(_pid_t1_hist, _pid_t2_hist))
             tip_trace.set_data(_tip_x_hist, _tip_y_hist)
+            sp_tip_trace.set_data(_sp_tip_x_hist, _sp_tip_y_hist)
             sp_dot.set_data([robot.setpoint_t1], [robot.setpoint_t2])
         else:
             idx = min(_step[0], len(path) - 1)
@@ -567,13 +583,14 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt = 0.02):
                 sp_link1,
                 sp_link2,
                 tip_trace,
+                sp_tip_trace,
                 time_text,
             )
         return link1, link2, elbow_dot, dot, sp_dot, time_text
 
     _animated = [link1, link2, elbow_dot, dot, sp_dot, time_text]
     if robot is not None:
-        _animated += [pid_trace, sp_link1, sp_link2, tip_trace]
+        _animated += [pid_trace, sp_link1, sp_link2, tip_trace, sp_tip_trace]
 
     _bg = [None]
 
@@ -610,9 +627,12 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt = 0.02):
                     del _pid_t2_hist[target:]
                     del _tip_x_hist[target:]
                     del _tip_y_hist[target:]
+                    del _sp_tip_x_hist[target:]
+                    del _sp_tip_y_hist[target:]
                     del _state_history[target:]
                     pid_trace.set_data(*_wrap_trace(_pid_t1_hist, _pid_t2_hist))
                     tip_trace.set_data(_tip_x_hist, _tip_y_hist)
+                    sp_tip_trace.set_data(_sp_tip_x_hist, _sp_tip_y_hist)
             else:
                 _step[0] = max(_step[0] - 2, 0)
             update(None)

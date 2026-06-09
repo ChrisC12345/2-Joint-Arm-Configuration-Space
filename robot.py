@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import arm
 import animation
 from arm import is_collision
-from pathing import rrt, smooth_path, interpolate_path, is_reachable
+from pathing import rrt, rrt_star, smooth_path, interpolate_path, is_reachable
 from simulation import SingleJointArmSim, DoubleJointArmSim
 from control import PIDController, TrajectoryFollower
 from logger import Logger
@@ -35,8 +35,8 @@ class Robot:
         self.sim = DoubleJointArmSim(upper_arm, forearm)
         self.sim.upper_arm.setMotorPowered(True)
         self.sim.forearm.setMotorPowered(True)
-        self.pid1 = PIDController(Kp=12, Ki=16, Kd=1.5)
-        self.pid2 = PIDController(Kp=6, Ki=8, Kd=0.3)
+        self.pid1 = PIDController(Kp=12, Ki=20, Kd=1.5)
+        self.pid2 = PIDController(Kp=8, Ki=10, Kd=0.3)
         self.follower = TrajectoryFollower(self.sim, self.pid1, self.pid2)
         self.trajectory = trajectory
         self.step = 0
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         if not is_reachable(grid, start, goal):
             print("no path exists — goal is not reachable from start")
         else:
-            path = rrt(start, goal, obstacles, max_iter=10000, step_size=0.2)
+            path = rrt_star(start, goal, obstacles, max_iter=2000, step_size=0.2)
             if path is None:
                 print("no path found")
             else:
@@ -121,10 +121,10 @@ if __name__ == "__main__":
                 print("path length after smoothing:", len(smoothed))
                 trapezoid_trajectory = trapezoidal_arc_traj(
                     smoothed,
-                    v_max=(2.0, 4.0),
-                    a_max=(4.0, 8.0),
-                    radius=0.4,
-                    v_turn=1.0,
+                    v_max=(2.0, 2.0),
+                    a_max=(4.0, 4.0),
+                    radius=0.2,
+                    v_turn=0.5,
                 )
                 robot = Robot()
                 robot.robotInit(trapezoid_trajectory)
