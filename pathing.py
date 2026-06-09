@@ -1,6 +1,8 @@
 """RRT path planning and path smoothing for a 2-link arm in C-space,
 treating the space as a torus."""
 
+import heapq
+
 import numpy as np
 import math
 from arm import is_collision_batch
@@ -62,7 +64,6 @@ def retrace_path(nodes, parent, idx):
     steps = []
     idx = idx
     while idx > 0:
-        print(f"idx={idx} node={nodes[idx]} parent={parent[idx]}")
         path.append(tuple(nodes[idx]))
         steps.append(np.array(torus_tuple_diff(nodes[idx], nodes[parent[idx]])))
         idx = parent[idx]
@@ -193,7 +194,9 @@ def rrt_star(start, goal, obstacles, max_iter=5000, step_size=0.05, radius=0.2):
     )
 
 
-def smooth_path(rrt_path, obstacles):
+def smooth_greedy(rrt_path, obstacles):
+    """Given a path from RRT, return a smoothed version by removing unnecessary
+    waypoints using a greedy approach. Returns a new Path object."""
     path = [np.asarray(p, float) for p in rrt_path.points]
     vectors = [v.copy() for v in rrt_path.steps]
     i = 0
@@ -212,8 +215,30 @@ def smooth_path(rrt_path, obstacles):
     return Path([tuple(p) for p in path], vectors)
 
 
-def smooth_djikstra(rrt_path, obstacles):
-    pass
+def smooth_dijkstra(rrt_path, obstacles):
+    dist = [float("inf")] * len(rrt_path)
+    pq = []  # priority queue of (distance, index)
+    dist[0] = 0
+    parent = [-1] * len(rrt_path)
+    heapq.heappush(pq, (0, 0))  # (distance, index)
+
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+
+        vec = np.zeros(2)
+        for v in range(u + 1, len(rrt_path)):
+            vec += rrt_path.steps[v - 1]
+            if (
+                _line_free_vec(rrt_path.points[u], vec, obstacles)
+                and dist[u] + np.linalg.norm(vec) < dist[v]
+            ):
+                dist[v] = dist[u] + np.linalg.norm(vec)
+                parent[v] = u
+                heapq.heappush(pq, (dist[v], v))
+
+    return retrace_path(np.array(rrt_path.points), parent, len(rrt_path) - 1)
 
 
 # this isnt really used

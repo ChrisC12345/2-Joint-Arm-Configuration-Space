@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import arm
 import animation
 from arm import is_collision
-from pathing import rrt, rrt_star, smooth_path, interpolate_path, is_reachable
+from pathing import rrt, rrt_star, smooth_greedy, smooth_dijkstra, is_reachable
 from simulation import SingleJointArmSim, DoubleJointArmSim
 from control import PIDController, TrajectoryFollower
 from logger import Logger
@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 print("no path found")
             else:
                 print("path length before smoothing:", len(path))
-                smoothed = smooth_path(path, obstacles)
+                smoothed = smooth_dijkstra(path, obstacles)
                 print("path length after smoothing:", len(smoothed))
                 trapezoid_trajectory = trapezoidal_arc_traj(
                     smoothed,
@@ -136,8 +136,8 @@ if __name__ == "__main__":
                 Logger._GRAPH_DRAW_INTERVAL = (
                     0.0  # disable throttle so every step updates ylim
                 )
-                for _ in range(len(trapezoid_trajectory)):
-                    robot.teleopPeriodic()
+                # for _ in range(len(trapezoid_trajectory)):
+                #     robot.teleopPeriodic()
                 Logger._GRAPH_DRAW_INTERVAL = saved
                 plt.pause(0.2)  # let Logger windows render and cache blit backgrounds
                 robot.reset()
