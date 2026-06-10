@@ -86,7 +86,7 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
 
     GOAL_BIAS = 0.1
 
-    for _ in range(max_iter):
+    for i in range(max_iter):
         nearest_idx, new_node = choose_new_node(
             nodes, n_nodes, GOAL_BIAS, goal, step_size
         )
@@ -98,6 +98,7 @@ def rrt(start, goal, obstacles, max_iter=5000, step_size=0.05):
 
             # check if we reached the goal
             if torus_dist_sq(goal, nodes[n_nodes - 1 : n_nodes])[0] < step_size**2:
+                print(f"number of iterations: {i}")
                 return retrace_path(nodes, parent, n_nodes - 1)
 
     return None
@@ -215,16 +216,18 @@ def smooth_greedy(rrt_path, obstacles):
     return Path([tuple(p) for p in path], vectors)
 
 
-def smooth_dijkstra(rrt_path, obstacles):
-    dist = [float("inf")] * len(rrt_path)
+def smooth_dijkstra(rrt_path, obstacles, node_cost=0):
+    """Given a path from RRT, return a smoothed version using dijkstra's algorithm.
+    The cost is total distance + (n_nodes - 1) * node_cost"""
+    cost = [float("inf")] * len(rrt_path)
     pq = []  # priority queue of (distance, index)
-    dist[0] = 0
+    cost[0] = 0
     parent = [-1] * len(rrt_path)
     heapq.heappush(pq, (0, 0))  # (distance, index)
 
     while pq:
         d, u = heapq.heappop(pq)
-        if d > dist[u]:
+        if d > cost[u]:
             continue
 
         vec = np.zeros(2)
@@ -232,11 +235,11 @@ def smooth_dijkstra(rrt_path, obstacles):
             vec += rrt_path.steps[v - 1]
             if (
                 _line_free_vec(rrt_path.points[u], vec, obstacles)
-                and dist[u] + np.linalg.norm(vec) < dist[v]
+                and cost[u] + np.linalg.norm(vec) + node_cost < cost[v]
             ):
-                dist[v] = dist[u] + np.linalg.norm(vec)
+                cost[v] = cost[u] + np.linalg.norm(vec) + node_cost
                 parent[v] = u
-                heapq.heappush(pq, (dist[v], v))
+                heapq.heappush(pq, (cost[v], v))
 
     # retrace
     path = []
@@ -244,7 +247,7 @@ def smooth_dijkstra(rrt_path, obstacles):
     idx = len(rrt_path) - 1
     while idx > 0:
         path.append(tuple(rrt_path.points[idx]))
-        steps.append(sum(rrt_path.steps[parent[idx]:idx]))
+        steps.append(sum(rrt_path.steps[parent[idx] : idx]))
         idx = parent[idx]
     path.append(tuple(rrt_path.points[0]))  # add start
     path.reverse()

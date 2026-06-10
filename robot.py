@@ -35,8 +35,8 @@ class Robot:
         self.sim = DoubleJointArmSim(upper_arm, forearm)
         self.sim.upper_arm.setMotorPowered(True)
         self.sim.forearm.setMotorPowered(True)
-        self.pid1 = PIDController(Kp=12, Ki=20, Kd=1.5)
-        self.pid2 = PIDController(Kp=8, Ki=10, Kd=0.3)
+        self.pid1 = PIDController(Kp=24, Ki=0, Kd=2)
+        self.pid2 = PIDController(Kp=16, Ki=0, Kd=0.3)
         self.follower = TrajectoryFollower(self.sim, self.pid1, self.pid2)
         self.trajectory = trajectory
         self.step = 0
@@ -49,14 +49,13 @@ class Robot:
     def teleopPeriodic(self):
         if self.trajectory is None:
             return
-        idx = min(self.step, len(self.trajectory) - 1)
-        self.follower.follow_trajectory(self.trajectory, idx, self.DT)
+        self.follower.follow_trajectory(self.trajectory, self.step, self.DT)
         self.sim.update()
         Logger.recordData("voltage1", self.sim.upper_arm.voltage)
         Logger.recordData("voltage2", self.sim.forearm.voltage)
         Logger.update()
-        if self.step < len(self.trajectory) - 1:
-            self.step += 1
+        # if self.step < len(self.trajectory) - 1:
+        self.step += 1
         self._sync_state()
 
     def capture_state(self):
@@ -117,14 +116,14 @@ if __name__ == "__main__":
                 print("no path found")
             else:
                 print("path length before smoothing:", len(path))
-                smoothed = smooth_dijkstra(path, obstacles)
+                smoothed = smooth_dijkstra(path, obstacles, node_cost=0.5)
                 print("path length after smoothing:", len(smoothed))
                 trapezoid_trajectory = trapezoidal_arc_traj(
                     smoothed,
-                    v_max=(2.0, 2.0),
-                    a_max=(4.0, 4.0),
-                    radius=0.2,
-                    v_turn=0.5,
+                    v_max=(2.5, 2.5),
+                    a_max=(5.0, 5.0),
+                    radius=0.3,
+                    v_turn=1.0,
                 )
                 robot = Robot()
                 robot.robotInit(trapezoid_trajectory)
@@ -148,8 +147,15 @@ if __name__ == "__main__":
                     title="2 Joint Arm PID and C-space Path",
                     robot=robot,
                 )
-                plot_path_on_cspace(ax2, smoothed, label="smoothed", color="lime")
                 plot_path_on_cspace(
-                    ax2, path, label="raw RRT", color="purple", fade=True
+                    ax2,
+                    smoothed,
+                    label="smoothed",
+                    color="lime",
+                    linewidth=2,
+                    alpha=0.5,
+                )
+                plot_path_on_cspace(
+                    ax2, path, label="raw RRT", color="purple", linewidth=0.5, alpha=0.3
                 )
                 plt.show()

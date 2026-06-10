@@ -19,11 +19,13 @@ class PIDController:
 
     def compute(self, position, setpoint, dt):
         self.error = torus_diff(setpoint, position)
-        self.integral += self.error * dt
         self.derivative = (self.error - self.prev_error) / dt
+        self.integral += self.error * dt
         output = (
-            self.Kp * self.error + self.Ki * self.integral + self.Kd * self.derivative
-        )
+                self.Kp * self.error
+                + self.Ki * self.integral
+                + self.Kd * self.derivative
+            )
         self.prev_error = self.error
         return output
 
@@ -95,7 +97,8 @@ class TrajectoryFollower:
         Logger.recordData("forearm_gravity_ff", forearm_gravity_ff)
         Logger.recordData("forearm_voltage", forearm_voltage)
 
-        Logger.recordData("traj state", trajectory.states[step])
+        idx = min(step, len(trajectory) - 1)
+        Logger.recordData("traj state", trajectory.states[idx])
 
         # live scrolling graphs (actual vs setpoint per joint, and voltages)
         Logger.graphData("actual", self.arm_sim.upper_arm.position, group="upper θ")

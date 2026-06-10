@@ -255,7 +255,7 @@ def pick_start_goal(grid):
     return clicks[0], clicks[1]
 
 
-def plot_path_on_cspace(ax, path, label, color, fade=False):
+def plot_path_on_cspace(ax, path, label, color, linewidth=2, alpha=0.85):
     """Overlay a Path onto an existing c-space axes."""
     t1s, t2s = [], []
     for i in range(len(path.points) - 1):
@@ -270,7 +270,6 @@ def plot_path_on_cspace(ax, path, label, color, fade=False):
                 t2s.append(float("nan"))
             t1s.append(pts[j, 0])
             t2s.append(pts[j, 1])
-    linewidth, alpha = (2, 0.85) if not fade else (1, 0.3)
     ax.plot(t1s, t2s, "-", color=color, linewidth=linewidth, alpha=alpha, label=label)
     ax.plot(
         [p[0] for p in path.points],
