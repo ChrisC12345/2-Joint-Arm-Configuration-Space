@@ -324,7 +324,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
                     solid_capstyle="round",
                 )
 
-    (link1,) = ax1.plot([], [], "m-", linewidth=4, solid_capstyle="round")
+    (link1,) = ax1.plot([], [], "m-", linewidth=4, solid_capstyle="round", label="actual arm")
     (link2,) = ax1.plot([], [], "b-", linewidth=3, solid_capstyle="round")
     ax1.plot([0], [0], "ko", markersize=6)
     (elbow_dot,) = ax1.plot([], [], "ko", markersize=6)
@@ -505,6 +505,9 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
     _step = [0]  # used only for kinematic mode
     paused = [False]
 
+    _TARGET_INTERVAL_MS = 20
+    _steps_per_frame = max(1, round(_TARGET_INTERVAL_MS / 1000 / robot.DT)) if robot is not None else 1
+
     def _wrap_trace(t1s, t2s):
         """Return (t1_plot, t2_plot) with NaN
         breaks wherever the path wraps across ±π."""
@@ -524,8 +527,9 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
     def update(_):
         if robot is not None:
             _state_history.append(robot.capture_state())
-            robot.teleopPeriodic()
-            _frame[0] += 1
+            for _ in range(_steps_per_frame):
+                robot.teleopPeriodic()
+            _frame[0] += _steps_per_frame
             t1_dot = torus_wrap(robot.t1)
             t2_dot = torus_wrap(robot.t2)
             fk = Arm.forward_kinematics(t1_dot, t2_dot)
@@ -619,8 +623,8 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
                 target = max(len(_state_history) - 2, 0)
                 if target < len(_state_history):
                     robot.restore_state(_state_history[target])
-                    robot.step = target
-                    _frame[0] = target
+                    robot.step = target * _steps_per_frame
+                    _frame[0] = target * _steps_per_frame
                     del _pid_t1_hist[target:]
                     del _pid_t2_hist[target:]
                     del _tip_x_hist[target:]
@@ -642,7 +646,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
         fig,
         update,
         frames=None,
-        interval=robot.DT * 1000,
+        interval=_TARGET_INTERVAL_MS,
         blit=True,
         cache_frame_data=False,
     )

@@ -15,7 +15,7 @@ class C:
     L2 = 30
 
     # --- Simulation ---
-    DT = 0.02
+    DT = 0.001
     GRAVITY = 9.80665  # m/s²
 
     # --- Upper arm physical properties ---
