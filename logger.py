@@ -51,7 +51,7 @@ class Logger:
     def _init(cls):
         if cls._fig is not None:
             return
-        cls._fig, cls._ax = plt.subplots(figsize=(2, 5))
+        cls._fig, cls._ax = plt.subplots(figsize=(2, 6))
         cls._fig.patch.set_facecolor(_BG)
         cls._fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
         cls._ax.set_facecolor(_BG)
@@ -114,7 +114,7 @@ class Logger:
     def _init_graph(cls):
         if cls._graph_fig is not None:
             return
-        cls._graph_fig = plt.figure(figsize=(3, 5))
+        cls._graph_fig = plt.figure(figsize=(3, 6))
         cls._graph_fig.patch.set_facecolor(_BG)
         cls._graph_fig.canvas.manager.set_window_title("Logger — Graphs")
         cls._graph_fig.canvas.mpl_connect("draw_event", cls._on_graph_draw)

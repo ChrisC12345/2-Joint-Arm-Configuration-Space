@@ -297,7 +297,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt=0.02):
     robot: Robot instance to drive with PID; if None, does
         kinematic-only playback
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.35, 5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.35, 6))
     fig.suptitle(title, fontsize=16)
 
     # left plot — real world

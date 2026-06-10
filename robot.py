@@ -136,8 +136,8 @@ if __name__ == "__main__":
                 Logger._GRAPH_DRAW_INTERVAL = (
                     0.0  # disable throttle so every step updates ylim
                 )
-                # for _ in range(len(trapezoid_trajectory)):
-                #     robot.teleopPeriodic()
+                for _ in range(len(trapezoid_trajectory)):
+                    robot.teleopPeriodic()
                 Logger._GRAPH_DRAW_INTERVAL = saved
                 plt.pause(0.2)  # let Logger windows render and cache blit backgrounds
                 robot.reset()

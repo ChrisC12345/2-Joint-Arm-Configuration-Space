@@ -238,7 +238,18 @@ def smooth_dijkstra(rrt_path, obstacles):
                 parent[v] = u
                 heapq.heappush(pq, (dist[v], v))
 
-    return retrace_path(np.array(rrt_path.points), parent, len(rrt_path) - 1)
+    # retrace
+    path = []
+    steps = []
+    idx = len(rrt_path) - 1
+    while idx > 0:
+        path.append(tuple(rrt_path.points[idx]))
+        steps.append(sum(rrt_path.steps[parent[idx]:idx]))
+        idx = parent[idx]
+    path.append(tuple(rrt_path.points[0]))  # add start
+    path.reverse()
+    steps.reverse()
+    return Path(path, steps)
 
 
 # this isnt really used
