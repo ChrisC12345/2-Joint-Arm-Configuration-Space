@@ -8,8 +8,7 @@ import matplotlib.colors as mcolors
 import matplotlib.widgets as mwidgets
 from matplotlib.patches import Circle, Polygon
 import math
-import arm
-from arm import forward_kinematics, is_collision_batch
+from arm import Arm
 from obstacles import Obstacle, ObstacleType
 from torus import torus_wrap
 from matplotlib.animation import FuncAnimation
@@ -23,7 +22,7 @@ def generate_cspace(obstacles):
     T1, T2 = np.meshgrid(
         np.linspace(-math.pi, math.pi, N), np.linspace(-math.pi, math.pi, N)
     )
-    return is_collision_batch(T1, T2, obstacles).astype(float)
+    return Arm.is_collision_batch(T1, T2, obstacles).astype(float)
 
 
 def setup_obstacles():
@@ -40,7 +39,7 @@ def setup_obstacles():
 
     fig_setup, ax_setup = plt.subplots(figsize=(7, 7))
     plt.subplots_adjust(bottom=0.24)
-    _init_reach = (arm.L1 + arm.L2) * 1.15
+    _init_reach = (Arm.L1 + Arm.L2) * 1.15
     ax_setup.set_xlim(-_init_reach, _init_reach)
     ax_setup.set_ylim(-_init_reach, _init_reach)
     ax_setup.set_aspect("equal")
@@ -70,15 +69,15 @@ def setup_obstacles():
 
     ax_tb_l1 = fig_setup.add_axes((0.20, 0.14, 0.18, 0.06))
     ax_tb_l2 = fig_setup.add_axes((0.62, 0.14, 0.18, 0.06))
-    tb_l1 = mwidgets.TextBox(ax_tb_l1, "L1:", initial=str(arm.L1))
-    tb_l2 = mwidgets.TextBox(ax_tb_l2, "L2:", initial=str(arm.L2))
+    tb_l1 = mwidgets.TextBox(ax_tb_l1, "L1:", initial=str(Arm.L1))
+    tb_l2 = mwidgets.TextBox(ax_tb_l2, "L2:", initial=str(Arm.L2))
 
     def _update_workspace_limits(_=None):
         try:
             l1 = float(tb_l1.text)
             l2 = float(tb_l2.text)
             if l1 > 0 and l2 > 0:
-                arm.set_arm_lengths(l1, l2)
+                Arm.set_lengths(l1, l2)
                 lim = (l1 + l2) * 1.15
                 ax_setup.set_xlim(-lim, lim)
                 ax_setup.set_ylim(-lim, lim)
@@ -288,7 +287,7 @@ def plot_path_on_cspace(ax, path, label, color, linewidth=2, alpha=0.85):
     )
 
 
-def animate_path(path, obstacles, grid, title="path", robot=None, dt=0.02):
+def animate_path(path, obstacles, grid, title="path", robot=None):
     """
     path:  (t1, t2) setpoint sequence — animated directly or used as
         PID reference
@@ -300,7 +299,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt=0.02):
     fig.suptitle(title, fontsize=16)
 
     # left plot — real world
-    reach = (arm.L1 + arm.L2) * 1.15
+    reach = (Arm.L1 + Arm.L2) * 1.15
     ax1.set_xlim(-reach, reach)
     ax1.set_ylim(-reach, reach)
     ax1.set_aspect("equal")
@@ -340,8 +339,8 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt=0.02):
         fontfamily="monospace",
     )
 
-    start_fk = forward_kinematics(path[0][0], path[0][1])
-    goal_fk = forward_kinematics(path[-1][0], path[-1][1])
+    start_fk = Arm.forward_kinematics(path[0][0], path[0][1])
+    goal_fk = Arm.forward_kinematics(path[-1][0], path[-1][1])
     ax1.plot(
         [0, start_fk[0][0]],
         [0, start_fk[0][1]],
@@ -497,7 +496,7 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt=0.02):
 
         _reset_robot()
     else:
-        frames = [forward_kinematics(t1, t2) for t1, t2 in path]
+        frames = [Arm.forward_kinematics(t1, t2) for t1, t2 in path]
         elbow_x = np.array([f[0][0] for f in frames])
         elbow_y = np.array([f[0][1] for f in frames])
         tip_x = np.array([f[1][0] for f in frames])
@@ -529,11 +528,11 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt=0.02):
             _frame[0] += 1
             t1_dot = torus_wrap(robot.t1)
             t2_dot = torus_wrap(robot.t2)
-            fk = forward_kinematics(t1_dot, t2_dot)
+            fk = Arm.forward_kinematics(t1_dot, t2_dot)
             ex, ey = fk[0]
             tx, ty = fk[1]
 
-            sp_fk = forward_kinematics(robot.setpoint_t1, robot.setpoint_t2)
+            sp_fk = Arm.forward_kinematics(robot.setpoint_t1, robot.setpoint_t2)
             sp_ex, sp_ey = sp_fk[0]
             sp_tx, sp_ty = sp_fk[1]
             sp_link1.set_data([0, sp_ex], [0, sp_ey])
@@ -640,7 +639,12 @@ def animate_path(path, obstacles, grid, title="path", robot=None, dt=0.02):
     fig.canvas.mpl_connect("key_press_event", on_key)
 
     ani = FuncAnimation(
-        fig, update, frames=None, interval=dt * 1000, blit=True, cache_frame_data=False
+        fig,
+        update,
+        frames=None,
+        interval=robot.DT * 1000,
+        blit=True,
+        cache_frame_data=False,
     )
 
     fig.subplots_adjust(left=0.05, right=0.85, top=0.93, bottom=0.07, wspace=0.35)

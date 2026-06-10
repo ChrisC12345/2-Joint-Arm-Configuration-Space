@@ -3,20 +3,17 @@
 into one FRC-style robot loop."""
 
 import matplotlib.pyplot as plt
-import arm
 import animation
-from arm import is_collision
+from constants import C
+from arm import Arm
 from pathing import rrt, rrt_star, smooth_greedy, smooth_dijkstra, is_reachable
-from simulation import SingleJointArmSim, DoubleJointArmSim
-from control import PIDController, TrajectoryFollower
+from control import TrajectoryFollower
 from logger import Logger
 from animation import animate_path, plot_path_on_cspace
 from trajectory import *
 
 
 class Robot:
-    DT = 0.02  # 20 ms loop period, like FRC
-
     def __init__(self):
         self.sim = None
         self.pid1 = None
@@ -28,16 +25,17 @@ class Robot:
         self.t2 = 0.0
         self.setpoint_t1 = 0.0
         self.setpoint_t2 = 0.0
+        self.DT = C.DT
 
     def robotInit(self, trajectory):
-        upper_arm = SingleJointArmSim(length=arm.L1 / 100)
-        forearm = SingleJointArmSim(length=arm.L2 / 100)
-        self.sim = DoubleJointArmSim(upper_arm, forearm)
+        self.sim = C.sim
         self.sim.upper_arm.setMotorPowered(True)
         self.sim.forearm.setMotorPowered(True)
-        self.pid1 = PIDController(Kp=24, Ki=0, Kd=2)
-        self.pid2 = PIDController(Kp=16, Ki=0, Kd=0.3)
-        self.follower = TrajectoryFollower(self.sim, self.pid1, self.pid2)
+        self.pid1 = C.pid1
+        self.pid2 = C.pid2
+        self.pid1.reset()
+        self.pid2.reset()
+        self.follower = C.traj_follower
         self.trajectory = trajectory
         self.step = 0
         self.sim.upper_arm.setPosition(trajectory.positions[0][0])
@@ -105,25 +103,34 @@ if __name__ == "__main__":
     else:
         start, goal = result
         print(f"start: {start}, goal: {goal}")
-        print("start in collision:", is_collision(start[0], start[1], obstacles))
-        print("goal in collision:", is_collision(goal[0], goal[1], obstacles))
+        print("start in collision:", Arm.is_collision(start[0], start[1], obstacles))
+        print("goal in collision:", Arm.is_collision(goal[0], goal[1], obstacles))
 
         if not is_reachable(grid, start, goal):
             print("no path exists — goal is not reachable from start")
         else:
-            path = rrt_star(start, goal, obstacles, max_iter=2000, step_size=0.2)
+            path = rrt_star(
+                start,
+                goal,
+                obstacles,
+                max_iter=C.RRT_MAX_ITER,
+                step_size=C.RRT_STEP_SIZE,
+            )
             if path is None:
                 print("no path found")
             else:
                 print("path length before smoothing:", len(path))
-                smoothed = smooth_dijkstra(path, obstacles, node_cost=0.5)
+                smoothed = smooth_dijkstra(
+                    path, obstacles, node_cost=C.SMOOTH_NODE_COST
+                )
                 print("path length after smoothing:", len(smoothed))
                 trapezoid_trajectory = trapezoidal_arc_traj(
                     smoothed,
-                    v_max=(2.5, 2.5),
-                    a_max=(5.0, 5.0),
-                    radius=0.3,
-                    v_turn=1.0,
+                    v_max=C.TRAJ_V_MAX,
+                    a_max=C.TRAJ_A_MAX,
+                    radius=C.TRAJ_TURN_RADIUS,
+                    v_turn=C.TRAJ_V_TURN,
+                    dt=C.DT,
                 )
                 robot = Robot()
                 robot.robotInit(trapezoid_trajectory)

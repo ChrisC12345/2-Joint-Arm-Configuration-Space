@@ -93,10 +93,10 @@ class DoubleJointArmSim:
     """simulates a double joint arm with motors at both joints,
     the second joint is at the end of the first segment"""
 
-    def __init__(self, upper_arm, forearm):
+    def __init__(self, upper_arm, forearm, g=9.81):
         self.upper_arm = upper_arm
         self.forearm = forearm
-        self.g = 9.81
+        self.g = g
 
     def update(self):
         self.upper_arm.set_motor_torque()

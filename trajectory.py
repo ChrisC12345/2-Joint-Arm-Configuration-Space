@@ -165,9 +165,9 @@ def trap_traj_endpts(p1, u1, v_max, a_max, v1=0, v2=0, dt=0.02):
     for i in range(accel_steps):
         v = v1 + max_accel * i * dt
         x = v1 * i * dt + 0.5 * max_accel * (i * dt) ** 2
-        accelerations.append(decompose_scalar_vec(p1, u1, max_accel))
-        velocities.append(decompose_scalar_vec(p1, u1, v))
-        positions.append(torus_tuple_wrap(decompose_scalar_vec(p1, u1, x)))
+        accelerations.append(decompose_scalar_vec(u1, max_accel))
+        velocities.append(decompose_scalar_vec(u1, v))
+        positions.append(torus_tuple_wrap(decompose_scalar_vec(u1, x, p1)))
         states.append("accel")
 
     v = peak_vel
@@ -175,9 +175,9 @@ def trap_traj_endpts(p1, u1, v_max, a_max, v1=0, v2=0, dt=0.02):
 
     for i in range(cruise_steps):
         x = accel_dist + v * i * dt
-        accelerations.append(decompose_scalar_vec(p1, u1, 0))
-        velocities.append(decompose_scalar_vec(p1, u1, v))
-        positions.append(torus_tuple_wrap(decompose_scalar_vec(p1, u1, x)))
+        accelerations.append(decompose_scalar_vec(u1, 0))
+        velocities.append(decompose_scalar_vec(u1, v))
+        positions.append(torus_tuple_wrap(decompose_scalar_vec(u1, x, p1)))
         states.append("cruise")
 
     dist_after_cruise = x + v * dt
@@ -185,9 +185,9 @@ def trap_traj_endpts(p1, u1, v_max, a_max, v1=0, v2=0, dt=0.02):
     for i in range(decel_steps):
         v = peak_vel - max_accel * i * dt
         x = dist_after_cruise + peak_vel * i * dt - 0.5 * max_accel * (i * dt) ** 2
-        accelerations.append(decompose_scalar_vec(p1, u1, -max_accel))
-        velocities.append(decompose_scalar_vec(p1, u1, v))
-        positions.append(torus_tuple_wrap(decompose_scalar_vec(p1, u1, x)))
+        accelerations.append(decompose_scalar_vec(u1, -max_accel))
+        velocities.append(decompose_scalar_vec(u1, v))
+        positions.append(torus_tuple_wrap(decompose_scalar_vec(u1, x, p1)))
         states.append("decel")
 
     return Trajectory(
@@ -299,24 +299,8 @@ def arc_traj(p1, u1, u3, v1, v3, r, dt=0.02):
     )
 
 
-def decompose_scalar(p1, p2, scalar):
-    """decomposes a scalar value into x and y components along p1-p2
-
-    Parameters
-    ----
-    p1 : starting point in configuration space np array of joint angles
-    p2 : ending point in configuration space np array of joint angles
-    scalar: scalar value to decompose
-    returns a tuple of (x_component, y_component)"""
-    diff = torus_tuple_diff(p2, p1)
-    distance = np.linalg.norm(diff)
-    x_comp = p1[0] + scalar * diff[0] / distance
-    y_comp = p1[1] + scalar * diff[1] / distance
-    return (x_comp, y_comp)
-
-
-def decompose_scalar_vec(start, vec, scalar):
-    """decomposes a scalar value into x and y components along start-(start+vec)
+def decompose_scalar_vec(vec, scalar, start=(0.0, 0.0)):
+    """decomposes a scalar value into x and y components from start along vec
 
     Parameters
     ----

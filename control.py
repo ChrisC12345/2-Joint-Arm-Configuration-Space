@@ -22,10 +22,8 @@ class PIDController:
         self.derivative = (self.error - self.prev_error) / dt
         self.integral += self.error * dt
         output = (
-                self.Kp * self.error
-                + self.Ki * self.integral
-                + self.Kd * self.derivative
-            )
+            self.Kp * self.error + self.Ki * self.integral + self.Kd * self.derivative
+        )
         self.prev_error = self.error
         return output
 
@@ -41,10 +39,10 @@ class TrajectoryFollower:
         self.controller1 = controller1
         self.controller2 = controller2
         self.arm_sim = arm_sim
-        self.kS = kS if kS is not None else (0.0, 0.0)
+        self.kS = kS if kS is not None else calculate_kS(arm_sim)
         self.kV = kV if kV is not None else calculate_kV(arm_sim)
         self.kA = kA if kA is not None else calculate_kA(arm_sim)
-        self.kG = kG if kG is not None else calulate_kG(arm_sim)
+        self.kG = kG if kG is not None else calculate_kG(arm_sim)
 
     def follow_trajectory(self, trajectory, step, dt=0.02):
         """Output motor voltage based on trajectory
@@ -155,7 +153,7 @@ class TrajectoryFollower:
         self.arm_sim.forearm.setVoltage(forearm_voltage)
 
 
-def calulate_kG(arm_sim, g=9.81):
+def calculate_kG(arm_sim, g=9.81):
     """calculate a theoretical value of kG"""
     forearm = arm_sim.forearm
     upper_arm = arm_sim.upper_arm
@@ -176,6 +174,15 @@ def calulate_kG(arm_sim, g=9.81):
         / (forearm.kE * forearm.gear_ratio)
     )
     return kG1, kG2
+
+
+def calculate_kS(arm_sim):
+    """calculate a theoretical value of kS"""
+    ua = arm_sim.upper_arm
+    fa = arm_sim.forearm
+    upper_kS = ua.max_static_friction * ua.resistance * ua.kE / ua.gear_ratio
+    forearm_kS = fa.max_static_friction * fa.resistance * fa.kE / fa.gear_ratio
+    return upper_kS, forearm_kS
 
 
 def calculate_kV(arm_sim):

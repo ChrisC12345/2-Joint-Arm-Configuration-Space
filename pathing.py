@@ -5,7 +5,7 @@ import heapq
 
 import numpy as np
 import math
-from arm import is_collision_batch
+from arm import Arm
 from torus import torus_diff, torus_tuple_diff, torus_wrap, torus_dist_sq
 
 
@@ -26,7 +26,7 @@ def _line_free(a, b, obstacles, resolution=0.05):
     n = max(4, int(np.linalg.norm(diff) / resolution))
     ts = np.linspace(0, 1, n, endpoint=False)
     configs = ((a + ts[:, None] * diff) + math.pi) % (2 * math.pi) - math.pi
-    return not np.any(is_collision_batch(configs[:, 0], configs[:, 1], obstacles))
+    return not np.any(Arm.is_collision_batch(configs[:, 0], configs[:, 1], obstacles))
 
 
 def _line_free_vec(start, vec, obstacles, resolution=0.01):
@@ -35,7 +35,7 @@ def _line_free_vec(start, vec, obstacles, resolution=0.01):
     length = np.linalg.norm(vec)
     num_pts = max(2, int(length / resolution))
     points = torus_wrap(start + np.linspace(0, 1, num_pts)[:, None] * vec)
-    return not np.any(is_collision_batch(points[:, 0], points[:, 1], obstacles))
+    return not np.any(Arm.is_collision_batch(points[:, 0], points[:, 1], obstacles))
 
 
 def choose_new_node(nodes, n_nodes, bias, goal, step_size):
