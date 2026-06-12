@@ -74,7 +74,7 @@ class SingleJointArmSim:
         self.torque = (
             torque - math.copysign(self.friction, self.velocity)
             if math.fabs(torque) > self.max_static_friction
-            or math.fabs(self.velocity) > 1e-3
+            or math.fabs(self.velocity) > 1e-6
             else 0.0
         )
         self.acceleration = self.torque / self.moi
@@ -169,7 +169,7 @@ def animateFreeFall(
     l1, l2 = arm.upper_arm.length, arm.forearm.length
 
     reach = (l1 + l2) * 1.1
-    fig, (ax, ax_cs) = plt.subplots(1, 2, figsize=(12, 6))
+    fig, (ax, ax_cs) = plt.subplots(1, 2, figsize=(10.35, 6))
     fig.suptitle("Double Arm — No Motor Power", fontsize=14)
 
     # --- left: real world ---
@@ -218,8 +218,13 @@ def animateFreeFall(
     ax_cs.legend(loc="upper right", fontsize=8)
 
     t_elapsed = [0.0]
+    _TARGET_INTERVAL_MS = 20
+    _steps_per_frame = max(1, round(_TARGET_INTERVAL_MS / 1000 / dt))
 
     def draw_frame(_):
+        for _ in range(_steps_per_frame):
+            arm.update()
+
         Logger.graphData("torque1", arm.upper_arm.torque)
         Logger.graphData("torque2", arm.forearm.torque)
         Logger.recordData("current1", arm.upper_arm.current)
@@ -228,7 +233,6 @@ def animateFreeFall(
         Logger.graphData("voltage2", arm.forearm.voltage)
         Logger.update()
 
-        arm.update()
         t1 = arm.upper_arm.position
         t2 = arm.forearm.position
         ex = l1 * math.cos(t1)
@@ -241,7 +245,7 @@ def animateFreeFall(
         tip_x.append(tx)
         tip_y.append(ty)
         tip_trace.set_data(tip_x, tip_y)
-        t_elapsed[0] += dt
+        t_elapsed[0] += dt * _steps_per_frame
         time_text.set_text(f"t = {t_elapsed[0]:.2f} s")
 
         t1w, t2w = _wrap(t1), _wrap(t2)
@@ -269,20 +273,24 @@ def animateFreeFall(
         fig,
         draw_frame,
         frames=None,
-        interval=dt * 1000,
+        interval=_TARGET_INTERVAL_MS,
         blit=True,
         cache_frame_data=False,
     )
     plt.tight_layout()
+    try:
+        fig.canvas.manager.window.move(500, 50)  # type: ignore[attr-defined]
+    except Exception:
+        pass
     plt.show()
     return ani
 
 
 if __name__ == "__main__":
-    upper_arm = SingleJointArmSim(dt=0.01)
-    forearm = SingleJointArmSim(dt=0.01)
-    upper_arm.friction = 2
-    forearm.friction = 2
+    upper_arm = SingleJointArmSim(length=0.4, dt=0.001)
+    forearm = SingleJointArmSim(length=0.3, dt=0.001)
+    upper_arm.friction = 1
+    forearm.friction = 1
     upper_arm.max_static_friction = 0
     forearm.max_static_friction = 0
     upper_arm.setVoltage(0)
