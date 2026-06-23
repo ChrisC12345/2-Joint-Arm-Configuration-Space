@@ -25,6 +25,7 @@ class SingleJointArmSim:
         friction=0.0,
         max_friction=0.0,
         dt=0.02,
+        name="arm"
     ):
         self.mass = mass
         self.length = length
@@ -37,6 +38,7 @@ class SingleJointArmSim:
         self.friction = friction
         self.max_static_friction = max_friction
         self.dt = dt
+        self.name = name
 
         self.position = 0.0
         self.velocity = 0.0
@@ -87,6 +89,7 @@ class SingleJointArmSim:
             self.length * math.cos(self.position),
             self.length * math.sin(self.position),
         )
+        Logger.recordData(f"{self.name}_motor_torque", self.motor_torque)
 
 
 class DoubleJointArmSim:

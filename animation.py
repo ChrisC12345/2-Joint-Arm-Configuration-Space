@@ -324,7 +324,9 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
                     solid_capstyle="round",
                 )
 
-    (link1,) = ax1.plot([], [], "m-", linewidth=4, solid_capstyle="round", label="actual arm")
+    (link1,) = ax1.plot(
+        [], [], "m-", linewidth=4, solid_capstyle="round", label="actual arm"
+    )
     (link2,) = ax1.plot([], [], "b-", linewidth=3, solid_capstyle="round")
     ax1.plot([0], [0], "ko", markersize=6)
     (elbow_dot,) = ax1.plot([], [], "ko", markersize=6)
@@ -506,7 +508,9 @@ def animate_path(path, obstacles, grid, title="path", robot=None):
     paused = [False]
 
     _TARGET_INTERVAL_MS = 20
-    _steps_per_frame = max(1, round(_TARGET_INTERVAL_MS / 1000 / robot.DT)) if robot is not None else 1
+    _steps_per_frame = (
+        max(1, round(_TARGET_INTERVAL_MS / 1000 / robot.DT)) if robot is not None else 1
+    )
 
     def _wrap_trace(t1s, t2s):
         """Return (t1_plot, t2_plot) with NaN

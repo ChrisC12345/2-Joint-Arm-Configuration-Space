@@ -198,6 +198,10 @@ def trap_traj_endpts(p1, u1, v_max, a_max, v1=0, v2=0, dt=0.02):
     )
 
 
+def arc_free(start, end, center):
+    pass
+
+
 def calc_arc_params(p1, u1, u3, r):
     """helper function to calculate the center and start/end points of a circular arc
     going from p1 to p3 with p2 as an intermediate point

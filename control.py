@@ -155,31 +155,20 @@ class TrajectoryFollower:
 
 def calculate_kG(arm_sim, g=9.81):
     """calculate a theoretical value of kG"""
-    forearm = arm_sim.forearm
-    upper_arm = arm_sim.upper_arm
+    ua, fa = arm_sim.upper_arm, arm_sim.forearm
     kG1 = (
-        (
-            upper_arm.mass * upper_arm.dist_COM
-            + forearm.mass * (upper_arm.length + forearm.dist_COM)
-        )
+        (ua.mass * ua.dist_COM + fa.mass * (ua.length + fa.dist_COM))
         * g
-        * upper_arm.resistance
-        / (upper_arm.kE * upper_arm.gear_ratio)
+        * ua.resistance
+        / (ua.kE * ua.gear_ratio)
     )
-    kG2 = (
-        forearm.mass
-        * forearm.dist_COM
-        * g
-        * forearm.resistance
-        / (forearm.kE * forearm.gear_ratio)
-    )
+    kG2 = fa.mass * fa.dist_COM * g * fa.resistance / (fa.kE * fa.gear_ratio)
     return kG1, kG2
 
 
 def calculate_kS(arm_sim):
     """calculate a theoretical value of kS"""
-    ua = arm_sim.upper_arm
-    fa = arm_sim.forearm
+    ua, fa = arm_sim.upper_arm, arm_sim.forearm
     upper_kS = ua.max_static_friction * ua.resistance * ua.kE / ua.gear_ratio
     forearm_kS = fa.max_static_friction * fa.resistance * fa.kE / fa.gear_ratio
     return upper_kS, forearm_kS
@@ -194,14 +183,9 @@ def calculate_kV(arm_sim):
 
 def calculate_kA(arm_sim):
     """calculate a theoretical value of kA"""
+    ua, fa = arm_sim.upper_arm, arm_sim.forearm
     upper_kA = (
-        (arm_sim.upper_arm.moi + arm_sim.upper_arm.length**2 * arm_sim.forearm.mass)
-        * arm_sim.upper_arm.resistance
-        / (arm_sim.upper_arm.kE * arm_sim.upper_arm.gear_ratio)
+        (ua.moi + ua.length**2 * fa.mass) * ua.resistance / (ua.kE * ua.gear_ratio)
     )
-    forearm_kA = (
-        arm_sim.forearm.moi
-        * arm_sim.forearm.resistance
-        / (arm_sim.forearm.kE * arm_sim.forearm.gear_ratio)
-    )
+    forearm_kA = fa.moi * fa.resistance / (fa.kE * fa.gear_ratio)
     return upper_kA, forearm_kA

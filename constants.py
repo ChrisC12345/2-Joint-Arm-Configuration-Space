@@ -5,7 +5,7 @@ from control import (
     calculate_kA,
     calculate_kS,
     calculate_kV,
-    calculate_kG
+    calculate_kG,
 )
 
 
@@ -15,8 +15,8 @@ class C:
     L2 = 30
 
     # --- Simulation ---
-    DT = 0.001
-    GRAVITY = 9.80665  # m/s²
+    DT = 0.01
+    GRAVITY = 9.81  # m/s²
 
     # --- Upper arm physical properties ---
     UA_MASS = 10  # kg
@@ -73,6 +73,7 @@ class C:
         friction=FRICTION,
         max_friction=MAX_STATIC_FRICTION,
         dt=DT,
+        name="upper"
     )
     forearm = SingleJointArmSim(
         mass=FA_MASS,
@@ -86,8 +87,9 @@ class C:
         friction=FRICTION,
         max_friction=MAX_STATIC_FRICTION,
         dt=DT,
+        name="forearm"
     )
-    sim = DoubleJointArmSim(upper_arm, forearm, DT)
+    sim = DoubleJointArmSim(upper_arm, forearm, GRAVITY)
     pid1 = PIDController(Kp=J1_KP, Ki=J1_KI, Kd=J1_KD)
     pid2 = PIDController(Kp=J2_KP, Ki=J2_KI, Kd=J2_KD)
 
@@ -99,7 +101,7 @@ class C:
 
 
 if __name__ == "__main__":
-    print(f'kS: {calculate_kS(C.sim)}')
-    print(f'kV: {calculate_kV(C.sim)}')
-    print(f'kA: {calculate_kA(C.sim)}')
-    print(f'kG: {calculate_kG(C.sim)}')
+    print(f"kS: {calculate_kS(C.sim)}")
+    print(f"kV: {calculate_kV(C.sim)}")
+    print(f"kA: {calculate_kA(C.sim)}")
+    print(f"kG: {calculate_kG(C.sim)}")

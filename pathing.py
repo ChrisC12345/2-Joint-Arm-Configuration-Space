@@ -2,6 +2,7 @@
 treating the space as a torus."""
 
 import heapq
+from collections import deque
 
 import numpy as np
 import math
@@ -35,7 +36,7 @@ def _line_free_vec(start, vec, obstacles, resolution=0.01):
     length = np.linalg.norm(vec)
     num_pts = max(2, int(length / resolution))
     points = torus_wrap(start + np.linspace(0, 1, num_pts)[:, None] * vec)
-    return not np.any(Arm.is_collision_batch(points[:, 0], points[:, 1], obstacles))
+    return not np.any(Arm.is_collision_batch(points[:, 0], points[:, 1], obstacles))    
 
 
 def choose_new_node(nodes, n_nodes, bias, goal, step_size):
@@ -289,8 +290,6 @@ def is_reachable(grid, start, goal, N=200):
     gi, gj = to_idx(goal)
 
     # BFS flood fill through free cells
-    from collections import deque
-
     visited = np.zeros((N, N), dtype=bool)
     queue = deque([(si, sj)])
     visited[si, sj] = True
