@@ -130,7 +130,8 @@ if __name__ == "__main__":
                     a_max=C.TRAJ_A_MAX,
                     radius=C.TRAJ_TURN_RADIUS,
                     v_turn=C.TRAJ_V_TURN,
-                    dt=C.DT,
+                    obstacles=obstacles,
+                    dt=C.DT
                 )
                 robot = Robot()
                 robot.robotInit(trapezoid_trajectory)

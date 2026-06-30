@@ -100,3 +100,7 @@ python robot.py
 
 
 Full transparency: a significant amount of ai was used in the making of this project. Although, all the essential math and algorithms were created by me. I also wrote the pathing, tajectory, control, torus and various other files myself (with a bit of ai in-line suggestions, but they are my ideas). The logging and animation is mostly written by ai because graphics were not the focus of this project. The focus was mainly on understanding the alogorithms, math, and physics.
+
+
+## Future Work
+1. Add obstacle avoidance for circular trajectories

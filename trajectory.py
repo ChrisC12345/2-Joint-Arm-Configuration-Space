@@ -1,6 +1,7 @@
 """Trajectory generation for robotic arms"""
 
 from dataclasses import dataclass
+from arm import Arm
 from logger import Logger
 import math
 
@@ -29,6 +30,17 @@ class Trajectory:
         )
 
 
+@dataclass
+class ArcParams:
+    start: np.ndarray # start point
+    end: np.ndarray # end point
+    center: np.ndarray # center of arc
+    start_vec: np.ndarray # vector from start to waypoint
+    end_vec: np.ndarray # vector from waypoint to end
+    radius: float # radius of arc
+    angle: float # angle subtended by arc
+
+
 def linear_traj(path, dt=0.02):
     """follow a path with constant speed in configuration space
     generally not a good trajectory, but simple to implement
@@ -50,7 +62,7 @@ def linear_traj(path, dt=0.02):
     )
 
 
-def trapezoidal_arc_traj(path, v_max, a_max, radius, v_turn, dt=0.02):
+def trapezoidal_arc_traj(path, v_max, a_max, radius, v_turn, obstacles,dt=0.02):
     """follow a path with trapezoidal velocity profile in configuration space
     accelerates at max_accel until max_vel, cruises at max_vel,
     then decelerates at max_accel to stop at the end of the path
@@ -78,17 +90,17 @@ def trapezoidal_arc_traj(path, v_max, a_max, radius, v_turn, dt=0.02):
         for i in range(len(waypoints) - 2):
             p1 = waypoints[i]
             u1, u3 = steps[i], steps[i + 1]
-            _, arc_end, _, vec, end_vec, *_ = calc_arc_params(p1, u1, u3, radius)
+            arc = find_largest_arc(p1, u1, u3, radius, obstacles)
 
             # vector from start (prev arc end) to c1: u1 minus both arc offsets
             traj += trap_traj_endpts(
-                start, u1 - vec - prev_end_vec, v_max, a_max, start_v, v_turn, dt=dt
+                start, u1 - arc.start_vec - prev_end_vec, v_max, a_max, start_v, v_turn, dt=dt
             )
-            traj += arc_traj(p1, u1, u3, v_turn, v_turn, radius, dt=dt)
-            start = arc_end
+            traj += arc_traj(arc, v_turn, v_turn, obstacles, dt=dt)
+            start = arc.end
             start_v = v_turn
-            prev_end_vec = end_vec
-        traj += trap_traj_endpts(start, u3 - end_vec, v_max, a_max, v_turn, 0, dt=dt)
+            prev_end_vec = arc.end_vec
+        traj += trap_traj_endpts(start, u3 - arc.end_vec, v_max, a_max, v_turn, 0, dt=dt)
         return traj
 
 
@@ -198,10 +210,6 @@ def trap_traj_endpts(p1, u1, v_max, a_max, v1=0, v2=0, dt=0.02):
     )
 
 
-def arc_free(start, end, center):
-    pass
-
-
 def calc_arc_params(p1, u1, u3, r):
     """helper function to calculate the center and start/end points of a circular arc
     going from p1 to p3 with p2 as an intermediate point
@@ -232,10 +240,18 @@ def calc_arc_params(p1, u1, u3, r):
     )  # both point away from p2
     center = p2 + safe_r / math.sin(angle) * bisector / np.linalg.norm(bisector)
 
-    return start, end, center, vec, end_vec, safe_r, math.pi - 2 * angle
+    return ArcParams(
+        start=start,
+        end=end,
+        center=center,
+        start_vec=vec,
+        end_vec=end_vec,
+        radius=safe_r,
+        angle=math.pi - 2 * angle,
+    )
 
 
-def arc_traj(p1, u1, u3, v1, v3, r, dt=0.02):
+def arc_traj(arc: ArcParams, v1, v3, obstacles, dt=0.02):
     """generate a circular arc trajectory going from p1 to p3 with p2 as a waypoint
     with constant acceleration along the arc
 
@@ -248,15 +264,14 @@ def arc_traj(p1, u1, u3, v1, v3, r, dt=0.02):
     v1: starting linear velocity along the arc
     v3: ending linear velocity along the arc
     """
-    start, end, center, vec, _end_vec, r, angle = calc_arc_params(p1, u1, u3, r)
-    arc_length = r * angle
+    arc_length = arc.radius * arc.angle
     accel = (v3**2 - v1**2) / (2 * arc_length)
     num_steps = int(arc_length / ((v1 + v3) / 2) / dt)
 
-    # determine CW (-1) or CCW (+1) from cross product of incoming  and centripetal
-    incoming = u1
+    # determine CW (-1) or CCW (+1) from cross product of incoming and centripetal
+    incoming = arc.start_vec
     turn_sign = np.sign(
-        incoming[0] * (center[1] - start[1]) - incoming[1] * (center[0] - start[0])
+        incoming[0] * (arc.center[1] - arc.start[1]) - incoming[1] * (arc.center[0] - arc.start[0])
     )
 
     if num_steps <= 0:
@@ -267,7 +282,7 @@ def arc_traj(p1, u1, u3, v1, v3, r, dt=0.02):
             states=np.empty(0, dtype=object),
         )
 
-    start_angle = math.atan2(start[1] - center[1], start[0] - center[0])
+    start_angle = math.atan2(arc.start[1] - arc.center[1], arc.start[0] - arc.center[0])
     arc_swept = 0.0
     v = v1
 
@@ -281,13 +296,13 @@ def arc_traj(p1, u1, u3, v1, v3, r, dt=0.02):
         arc_swept = v1 * t + 0.5 * accel * t**2
         v = v1 + accel * t
 
-        theta = start_angle + turn_sign * arc_swept / r
-        x = center + r * np.array([math.cos(theta), math.sin(theta)])
+        theta = start_angle + turn_sign * arc_swept / arc.radius
+        x = arc.center + arc.radius * np.array([math.cos(theta), math.sin(theta)])
 
-        radial = (x - center) / r
+        radial = (x - arc.center) / arc.radius
         tangent_vec = turn_sign * np.array([-radial[1], radial[0]])
 
-        a_c = v**2 / r
+        a_c = v**2 / arc.radius
         a_total = -a_c * radial + accel * tangent_vec
 
         positions.append(torus_tuple_wrap(tuple(x)))
@@ -301,6 +316,40 @@ def arc_traj(p1, u1, u3, v1, v3, r, dt=0.02):
         accelerations=np.array(accelerations),
         states=np.array(states),
     )
+
+
+def arc_free(arc: ArcParams, obstacles, num_intervals=10):
+    s, e, c, r = arc.start, arc.end, arc.center, arc.radius
+    v1, v2 = torus_diff(c, s), torus_diff(c, e)
+    sign = np.sign(np.cross(v1, v2)) # positive if CCW, negative if CW
+    start_angle = np.arctan2(-v1[1], -v1[0])
+    interp = np.linspace(start_angle, start_angle + arc.angle * sign, num_intervals)
+    x_points = c[0] + r * np.cos(interp)
+    y_points = c[1] + r * np.sin(interp)
+    points = np.column_stack((x_points, y_points))
+    return not np.any(Arm.is_collision_batch(points[:, 0], points[:, 1], obstacles))
+
+
+def find_largest_arc(p1, u1, u3, r, obstacles, max_iter=4):
+    """use binary search to find the largest arc that doesn't collide with the obstacles
+    """
+    # if original arc works, use it
+    arc = calc_arc_params(p1, u1, u3, r)
+    if arc_free(arc, obstacles):
+        return arc
+    
+    low, high = 1e-2, r
+    best_arc = None
+    for i in range(max_iter):
+        r = (low + high) / 2
+        arc = calc_arc_params(p1, u1, u3, r)
+        if arc_free(arc, obstacles):
+            low = r
+            best_arc = arc
+        else:
+            high = r
+
+    return best_arc
 
 
 def decompose_scalar_vec(vec, scalar, start=(0.0, 0.0)):

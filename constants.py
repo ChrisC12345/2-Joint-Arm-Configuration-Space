@@ -57,7 +57,7 @@ class C:
     # --- Trajectory ---
     TRAJ_V_MAX = (2.5, 2.5)  # rad/s per joint
     TRAJ_A_MAX = (5.0, 5.0)  # rad/s² per joint
-    TRAJ_TURN_RADIUS = 0.3  # rad, c-space arc radius at waypoints
+    TRAJ_TURN_RADIUS = 1.0  # rad, c-space arc radius at waypoints
     TRAJ_V_TURN = 1.0  # rad/s, speed through waypoint arcs
 
     # --- Simulation objects ---
